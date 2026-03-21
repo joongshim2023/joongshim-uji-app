@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "880648187658",
+    "project_id": "joongshim-uji",
+    "storage_bucket": "joongshim-uji.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:880648187658:android:d3c78a8ecc19b77b2c14f3",
+        "android_client_info": {
+          "package_name": "com.uji.joongshim"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "880648187658-h5oon17ji0tmhcm9df7gol1ech39liqk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.uji.joongshim",
+            "certificate_hash": "759054d9ea37f34994303d815801525461b38079"
+          }
+        },
+        {
+          "client_id": "880648187658-bfejjnap1bn8rq8usu7e5l2td7g1g9mc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvN12slMFlXPg8RcexTeGRn1My2kgVaA8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "880648187658-bfejjnap1bn8rq8usu7e5l2td7g1g9mc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "880648187658-6643bsvub7h17tp0rhp7d6q0hiuebmhh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.uji.joongshim"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
