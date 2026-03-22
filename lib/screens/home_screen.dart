@@ -277,10 +277,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     // TODO: 시계형 복원 시 아래 주석 해제하고 바 타입 주석 처리
                     // _inputType == 'clock' ? _buildClockPickerPanel(recordsMap) : _buildClockPanel(recordsMap)
                     Expanded(
-                      flex: 1, 
+                      flex: 4, 
                       child: _buildClockPanel(recordsMap),
                     ),
-                    Expanded(flex: 1, child: _buildTimeline(recordsMap, currentHour, currentMin)),
+                    Expanded(flex: 8, child: _buildTimeline(recordsMap, currentHour, currentMin)),
                   ],
                 ),
               )
@@ -451,27 +451,35 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              IconButton(icon: const Icon(Icons.chevron_left, color: AppTheme.mutedTeal), onPressed: _selectedHour > 0 ? () { _flushPending(); setState(() => _selectedHour--); } : null),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.chevron_left, color: AppTheme.mutedTeal, size: 20), 
+                onPressed: _selectedHour > 0 ? () { _flushPending(); setState(() => _selectedHour--); } : null
+              ),
               Column(
                 children: [
-                  Text(_selectedHour.toString().padLeft(2, '0')+':00', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textWhite, fontFamily: 'monospace')),
-                  const Text('선택됨', style: TextStyle(fontSize: 10, color: AppTheme.textGray)),
+                  Text(_selectedHour.toString().padLeft(2, '0')+':00', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textWhite, fontFamily: 'monospace')),
+                  const Text('선택됨', style: TextStyle(fontSize: 9, color: AppTheme.textGray)),
                 ],
               ),
-              IconButton(icon: const Icon(Icons.chevron_right, color: AppTheme.mutedTeal), onPressed: _selectedHour < 23 ? () { _flushPending(); setState(() => _selectedHour++); } : null),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.chevron_right, color: AppTheme.mutedTeal, size: 20), 
+                onPressed: _selectedHour < 23 ? () { _flushPending(); setState(() => _selectedHour++); } : null
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text('$pct%', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: isActiveWindow ? AppTheme.activeGreen : AppTheme.textGray.withOpacity(0.5))),
-              const SizedBox(width: 8),
-              Text('$currentRecord분', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isActiveWindow ? AppTheme.textWhite : AppTheme.textGray.withOpacity(0.5))),
+              Text('$pct%', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isActiveWindow ? AppTheme.activeGreen : AppTheme.textGray.withOpacity(0.5))),
+              const SizedBox(width: 4),
+              Text('$currentRecord분', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isActiveWindow ? AppTheme.textWhite : AppTheme.textGray.withOpacity(0.5))),
             ],
           ),
           
@@ -533,7 +541,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       
                       return Expanded(
                         child: FractionallySizedBox(
-                          widthFactor: 0.5,
+                          widthFactor: 0.8,
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 2),
                             decoration: BoxDecoration(

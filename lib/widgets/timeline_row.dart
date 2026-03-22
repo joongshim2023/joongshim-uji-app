@@ -45,7 +45,9 @@ class TimelineRow extends StatelessWidget {
                   ? AppTheme.yellowAccent.withOpacity(0.1)
                   : hasData 
                       ? AppTheme.mutedTeal.withOpacity(0.05)
-                      : Colors.transparent,
+                      : isActiveWindow
+                          ? AppTheme.textGray.withOpacity(0.03) // 활동 시간인데 미기록인 경우 아주 미세한 배경 추가
+                          : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected 
@@ -57,23 +59,42 @@ class TimelineRow extends StatelessWidget {
         ),
         child: Opacity(
           opacity: isActiveWindow ? 1.0 : 0.4,
-          child: Row(
+          child:          Row(
             children: [
-              // 시간 라벨
+              // 시간 라벨 (AM/PM 작게 처리)
               SizedBox(
-                width: 55,
-                child: Text(
-                  _formatHour(hour),
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? AppTheme.mutedTeal : isCurrent ? AppTheme.yellowAccent : AppTheme.textGray,
-                  ),
-                  textAlign: TextAlign.right,
+                width: 34,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)}',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 16,
+                        height: 1.0,
+                        fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected 
+                            ? AppTheme.mutedTeal 
+                            : isCurrent 
+                                ? AppTheme.yellowAccent 
+                                : (isActiveWindow ? AppTheme.textWhite.withOpacity(0.9) : AppTheme.textGray),
+                      ),
+                    ),
+                    Text(
+                      hour < 12 ? "AM" : "PM",
+                      style: TextStyle(
+                        fontSize: 8,
+                        height: 1.0,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? AppTheme.mutedTeal.withOpacity(0.8) : AppTheme.textGray,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               
               // 게이지 바
               Expanded(
@@ -82,19 +103,19 @@ class TimelineRow extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      height: 12,
+                      height: 10,
                       decoration: BoxDecoration(
-                        color: AppTheme.timelineBg,
-                        borderRadius: BorderRadius.circular(6),
+                        color: isActiveWindow ? AppTheme.timelineBg.withOpacity(0.5) : AppTheme.timelineBg,
+                        borderRadius: BorderRadius.circular(5),
                       ),
                     ),
                     FractionallySizedBox(
-                      widthFactor: minutes / 60,
+                      widthFactor: (minutes / 60).clamp(0.0, 1.0),
                       child: Container(
-                        height: 12,
+                        height: 10,
                         decoration: BoxDecoration(
                           color: isSelected ? AppTheme.mutedTeal : (pct >= 80 ? AppTheme.mutedTeal : AppTheme.softIndigo),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(5),
                         ),
                       ),
                     ),
@@ -104,12 +125,12 @@ class TimelineRow extends StatelessWidget {
                         right: 0,
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
-                          widthFactor: currentMinute / 60,
+                          widthFactor: (currentMinute / 60).clamp(0.0, 1.0),
                           child: Align(
                             alignment: Alignment.centerRight,
                             child: Container(
                               width: 3,
-                              height: 16,
+                              height: 14,
                               color: AppTheme.yellowAccent,
                             ),
                           ),
@@ -120,44 +141,37 @@ class TimelineRow extends StatelessWidget {
               ),
               
               // 퍼센트 및 분 텍스트
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               SizedBox(
-                width: 60,
+                width: 62,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
                       hasData ? '${minutes}분' : '—',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: hasData ? AppTheme.textWhite : AppTheme.textGray,
-                        fontSize: 12,
+                        color: hasData ? AppTheme.textWhite : AppTheme.textGray.withOpacity(isActiveWindow ? 0.6 : 0.3),
+                        fontSize: 10,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    SizedBox(
-                      width: 28,
-                      child: Text(
-                        hasData ? '$pct%' : '',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: AppTheme.activeGreen,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                        textAlign: TextAlign.right,
+                    const SizedBox(width: 4),
+                    Text(
+                      hasData ? '$pct%' : '',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: pct >= 80 ? AppTheme.activeGreen : AppTheme.softIndigo,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        letterSpacing: -0.5,
                       ),
+                      textAlign: TextAlign.right,
                     ),
                   ],
                 ),
               ),
-              
-              // 수면 라벨
-              if (!isActiveWindow)
-                const Padding(
-                  padding: EdgeInsets.only(left: 8.0),
-                  child: Text('수면', style: TextStyle(color: AppTheme.textGray, fontSize: 10)),
-                ),
             ],
           ),
         ),
