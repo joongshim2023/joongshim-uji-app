@@ -16,6 +16,11 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
+  AndroidFlutterLocalNotificationsPlugin? get _androidPlugin =>
+      flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
   Future<void> init() async {
     if (kIsWeb) return;
 
@@ -45,12 +50,8 @@ class NotificationService {
     );
 
     if (Platform.isAndroid) {
-      final androidPlugin = flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-
       // 알림 채널 생성 (중요도 MAX)
-      await androidPlugin?.createNotificationChannel(
+      await _androidPlugin?.createNotificationChannel(
         const AndroidNotificationChannel(
           _channelId,
           _channelName,
@@ -61,39 +62,44 @@ class NotificationService {
         ),
       );
 
-      // 알림 권한 및 정밀 알람 권한 요청
-      final notifGranted = await androidPlugin?.requestNotificationsPermission();
-      final alarmGranted = await androidPlugin?.requestExactAlarmsPermission();
-      debugPrint('[알림] 알림 권한=$notifGranted, 정밀 알람 권한=$alarmGranted');
+      // POST_NOTIFICATIONS 권한 요청 (Android 13+)
+      final notifGranted = await _androidPlugin?.requestNotificationsPermission();
+      debugPrint('[알림] 알림 권한=$notifGranted');
     }
   }
 
-  Future<bool> requestPermissions() async {
+  /// POST_NOTIFICATIONS 권한만 요청 (알람 권한은 별도 처리)
+  Future<bool> requestNotificationPermission() async {
     if (kIsWeb) return true;
-    bool granted = true;
     if (Platform.isAndroid) {
-      final androidImplementation = flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      final notifGranted =
-          await androidImplementation?.requestNotificationsPermission();
-      final alarmGranted =
-          await androidImplementation?.requestExactAlarmsPermission();
-      debugPrint('[알림] requestPermissions → 알림=$notifGranted, 정밀알람=$alarmGranted');
-      granted = (notifGranted != false) && (alarmGranted != false);
+      final granted = await _androidPlugin?.requestNotificationsPermission();
+      return granted ?? true;
     } else if (Platform.isIOS) {
-      final iosImplementation = flutterLocalNotificationsPlugin
+      final iosImpl = flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
               IOSFlutterLocalNotificationsPlugin>();
-      final iosGranted = await iosImplementation?.requestPermissions(
+      final granted = await iosImpl?.requestPermissions(
           alert: true, badge: true, sound: true);
-      granted = iosGranted ?? true;
+      return granted ?? true;
     }
-    return granted;
+    return true;
+  }
+
+  /// Android 12+ 정밀 알람 권한 여부 확인
+  Future<bool> canScheduleExactAlarms() async {
+    if (kIsWeb || !Platform.isAndroid) return true;
+    final result = await _androidPlugin?.canScheduleExactNotifications();
+    debugPrint('[알림] canScheduleExactNotifications=$result');
+    return result ?? false;
+  }
+
+  /// 정밀 알람 권한 요청 → 시스템 설정 화면으로 이동
+  Future<void> requestExactAlarmPermission() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    await _androidPlugin?.requestExactAlarmsPermission();
   }
 
   /// 알람 전체 재등록
-  /// startHour ~ endHour 사이를 intervalMinutes 간격으로 알람 예약
   Future<void> rescheduleAlarms({
     required int startHour,
     required int endHour,
@@ -102,7 +108,6 @@ class NotificationService {
   }) async {
     if (kIsWeb) return;
 
-    // 기존 알람 전체 취소
     await flutterLocalNotificationsPlugin.cancelAll();
     debugPrint('[알림] 기존 알람 전체 취소 완료');
 
@@ -115,21 +120,25 @@ class NotificationService {
     int id = 0;
     int scheduledCount = 0;
 
-    for (int h = startHour; h < endHour; h++) {
-      // 정각 알람
-      await _scheduleDaily(id++, h, 0, now);
-      scheduledCount++;
+    // 정밀 알람 권한 확인
+    final bool canExact = await canScheduleExactAlarms();
+    final AndroidScheduleMode mode = canExact
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexactAllowWhileIdle;
 
-      // 30분 간격이면 30분 알람 추가 (마지막 시간 직전까지만)
+    debugPrint('[알림] 스케줄 모드: ${canExact ? "exact" : "inexact (권한 없음)"}');
+
+    for (int h = startHour; h < endHour; h++) {
+      await _scheduleDaily(id++, h, 0, now, mode);
+      scheduledCount++;
       if (intervalMinutes == 30) {
-        await _scheduleDaily(id++, h, 30, now);
+        await _scheduleDaily(id++, h, 30, now, mode);
         scheduledCount++;
       }
     }
-
-    // endHour 정각 알람 (예: 24시 → 자정 알람)
+    // endHour 정각 알람 (24시 이상은 스킵)
     if (endHour < 24) {
-      await _scheduleDaily(id++, endHour, 0, now);
+      await _scheduleDaily(id++, endHour, 0, now, mode);
       scheduledCount++;
     }
 
@@ -137,12 +146,9 @@ class NotificationService {
   }
 
   Future<void> _scheduleDaily(
-      int id, int h, int m, tz.TZDateTime now) async {
-    // 오늘 기준으로 예약 시각 계산
+      int id, int h, int m, tz.TZDateTime now, AndroidScheduleMode mode) async {
     tz.TZDateTime scheduledDate =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, h, m);
-
-    // 이미 지난 시간이면 내일로 설정
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
@@ -161,10 +167,7 @@ class NotificationService {
       showWhen: true,
       enableVibration: true,
       playSound: true,
-      // 잠금 화면에도 전체 내용 표시
       visibility: NotificationVisibility.public,
-      // 헤드업 알림 강제
-      fullScreenIntent: false,
     );
 
     final NotificationDetails platformDetails = NotificationDetails(
@@ -181,33 +184,14 @@ class NotificationService {
         '$timeStr입니다. 유지 비중을 지금 기록하세요!',
         scheduledDate,
         platformDetails,
-        // exactAllowWhileIdle: 도즈 모드(절전)에서도 정확히 울림
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        // time: 매일 같은 시간에 반복
+        androidScheduleMode: mode,
         matchDateTimeComponents: DateTimeComponents.time,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
       );
       debugPrint('[알림] 예약 성공 id=$id → $scheduledDate ($timeStr)');
     } catch (e) {
-      // 정밀 알람 권한이 없을 경우 inexact로 fallback
-      debugPrint('[알림] exactAllowWhileIdle 실패, inexact로 fallback: $e');
-      try {
-        await flutterLocalNotificationsPlugin.zonedSchedule(
-          id,
-          '중심 유지 App 리마인더',
-          '$timeStr입니다. 유지 비중을 지금 기록하세요!',
-          scheduledDate,
-          platformDetails,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          matchDateTimeComponents: DateTimeComponents.time,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-        );
-        debugPrint('[알림] inexact 예약 성공 id=$id → $scheduledDate ($timeStr)');
-      } catch (e2) {
-        debugPrint('[알림] 알람 예약 완전 실패 id=$id: $e2');
-      }
+      debugPrint('[알림] 알람 예약 실패 id=$id: $e');
     }
   }
 }

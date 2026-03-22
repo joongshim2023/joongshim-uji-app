@@ -415,17 +415,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 _buildSectionHeader("알림 시스템"),
                 _buildListTile(
-                  icon: Icons.notifications_active_outlined, 
-                  title: "푸시 알림 켜기", 
-                  isSwitch: true, 
+                  icon: Icons.notifications_active_outlined,
+                  title: "푸시 알림 켜기",
+                  isSwitch: true,
                   value: _alarmOn,
                   onSwitch: (val) async {
                     if (val) {
-                      await NotificationService().requestPermissions();
+                      // 1. POST_NOTIFICATIONS 권한 요청 (Android 13+)
+                      await NotificationService().requestNotificationPermission();
+
+                      // 2. 정밀 알람 권한 확인 (Android 12+)
+                      final canExact = await NotificationService().canScheduleExactAlarms();
+                      if (!canExact && mounted) {
+                        // 권한 없으면 안내 다이얼로그
+                        // ignore: use_build_context_synchronously
+                        final goSettings = await showDialog<bool>(
+                          // ignore: use_build_context_synchronously
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            backgroundColor: AppTheme.bgCard,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Row(
+                              children: [
+                                Icon(Icons.alarm_outlined, color: Color(0xFFFBBF24), size: 22),
+                                SizedBox(width: 8),
+                                Text('정밀 알람 권한 필요', style: TextStyle(color: AppTheme.textWhite, fontSize: 16)),
+                              ],
+                            ),
+                            content: const Text(
+                              '30분/60분 간격으로 정확히 알림을 받으려면\n"알람 및 리마인더" 권한이 필요합니다.\n\n설정 > 앱 > 중심유지 >\n알람 및 리마인더 → 허용',
+                              style: TextStyle(color: AppTheme.textGray, fontSize: 14, height: 1.6),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('나중에', style: TextStyle(color: AppTheme.textGray)),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('설정으로 이동', style: TextStyle(color: AppTheme.mutedTeal, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (goSettings == true) {
+                          await NotificationService().requestExactAlarmPermission();
+                        }
+                      }
                     }
                     setState(() => _alarmOn = val);
                     _updateSetting('alarmOn', val);
-                  }
+                  },
                 ),
                 if (_alarmOn) 
                   _buildListTile(
