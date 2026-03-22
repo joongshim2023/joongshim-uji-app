@@ -1,4 +1,7 @@
 build/
+.dart_tool/
+ios/Pods/
+ios/Flutter/Flutter.podspec
 android/joongshim-uji-release.jks
 android/key.properties
 android/app/google-services.json
