@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <application
-        android:label="중심 유지 App"
+        android:label="중심유지"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
