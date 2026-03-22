@@ -112,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Firebase 에러 코드를 한국어로 변환
+  // Firebase / Google 에러 코드를 한국어로 변환
   String _parseFirebaseError(dynamic e) {
     String msg = e.toString();
     if (msg.contains('user-not-found')) return '등록되지 않은 이메일입니다.';
@@ -122,7 +122,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (msg.contains('weak-password')) return '비밀번호가 너무 간단합니다. 영문자와 숫자를 포함하여 6자 이상 설정하세요.';
     if (msg.contains('too-many-requests')) return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.';
     if (msg.contains('network-request-failed')) return '네트워크 연결을 확인해주세요.';
-    if (msg.contains('cancelled') || msg.contains('canceled')) return '로그인이 취소되었습니다.';
+    // Google Sign-In: SHA-1 미등록 → Credential Manager가 cancelled로 반환
+    if (msg.contains('GoogleSignInException') && msg.contains('cancelled')) {
+      return 'Google 로그인 설정 오류입니다.\n\nFirebase Console에 Play 스토어 서명 SHA-1이 등록되지 않았습니다.\n\n[해결 방법]\n① Google Play Console → 설정 → 앱 서명\n   → "앱 서명 키 인증서" SHA-1 복사\n② Firebase Console → 프로젝트 설정\n   → Android 앱 → 디지털 지문 추가';
+    }
+    if (msg.contains('clientConfigurationError')) return 'Google 로그인 설정 오류입니다. Firebase Console에서 SHA-1을 등록해주세요.';
     return '오류가 발생했습니다.\n$msg';
   }
 
@@ -174,11 +178,16 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _googleLogin() async {
     setState(() => _isLoading = true);
     try {
-      final result = await _authService.signInWithGoogle();
-      if (result == null && mounted) {
-        // 사용자가 취소한 경우 - 팝업 없이 그냥 무시
-      }
+      await _authService.signInWithGoogle();
     } catch (e) {
+      final msg = e.toString();
+      // 사용자가 직접 취소한 경우 (계정 선택 창에서 뒤로가기) → 팝업 없이 무시
+      if (msg.contains('sign_in_canceled') ||
+          msg.contains('sign_in_cancelled') ||
+          msg.contains('The user canceled the sign-in flow')) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
       _showErrorDialog('Google 로그인 실패', _parseFirebaseError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);

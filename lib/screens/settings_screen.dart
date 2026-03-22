@@ -429,8 +429,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 _buildSectionHeader("계정 관리"),
                 ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.redAccent),
-                  title: const Text("로그아웃", style: TextStyle(color: Colors.redAccent, fontSize: 15, fontWeight: FontWeight.bold)),
+                  leading: const Icon(Icons.logout, color: AppTheme.textWhite),
+                  title: const Text("로그아웃", style: TextStyle(color: AppTheme.textWhite, fontSize: 15)),
                   onTap: () async {
                     try {
                       await _auth.signOut();
