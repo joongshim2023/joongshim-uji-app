@@ -2,7 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -37,14 +37,19 @@ class NotificationService {
       iOS: initializationSettingsIOS,
     );
 
-    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    await flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        debugPrint('[알림] 탭됨 id=${response.id}, payload=${response.payload}');
+      },
+    );
 
     if (Platform.isAndroid) {
-      // Android 알림 채널 명시적 생성 → 앱 알림 목록에 등록됨
       final androidPlugin = flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
 
+      // 알림 채널 생성 (중요도 MAX)
       await androidPlugin?.createNotificationChannel(
         const AndroidNotificationChannel(
           _channelId,
@@ -56,9 +61,10 @@ class NotificationService {
         ),
       );
 
-      // 알림 권한 요청
-      await androidPlugin?.requestNotificationsPermission();
-      await androidPlugin?.requestExactAlarmsPermission();
+      // 알림 권한 및 정밀 알람 권한 요청
+      final notifGranted = await androidPlugin?.requestNotificationsPermission();
+      final alarmGranted = await androidPlugin?.requestExactAlarmsPermission();
+      debugPrint('[알림] 알림 권한=$notifGranted, 정밀 알람 권한=$alarmGranted');
     }
   }
 
@@ -69,22 +75,25 @@ class NotificationService {
       final androidImplementation = flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
-      bool? notifGranted =
+      final notifGranted =
           await androidImplementation?.requestNotificationsPermission();
-      bool? alarmGranted =
+      final alarmGranted =
           await androidImplementation?.requestExactAlarmsPermission();
+      debugPrint('[알림] requestPermissions → 알림=$notifGranted, 정밀알람=$alarmGranted');
       granted = (notifGranted != false) && (alarmGranted != false);
     } else if (Platform.isIOS) {
       final iosImplementation = flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
               IOSFlutterLocalNotificationsPlugin>();
-      bool? iosGranted = await iosImplementation?.requestPermissions(
+      final iosGranted = await iosImplementation?.requestPermissions(
           alert: true, badge: true, sound: true);
       granted = iosGranted ?? true;
     }
     return granted;
   }
 
+  /// 알람 전체 재등록
+  /// startHour ~ endHour 사이를 intervalMinutes 간격으로 알람 예약
   Future<void> rescheduleAlarms({
     required int startHour,
     required int endHour,
@@ -93,34 +102,57 @@ class NotificationService {
   }) async {
     if (kIsWeb) return;
 
+    // 기존 알람 전체 취소
     await flutterLocalNotificationsPlugin.cancelAll();
-    if (!alarmOn) return;
+    debugPrint('[알림] 기존 알람 전체 취소 완료');
 
-    tz.TZDateTime now = tz.TZDateTime.now(tz.local);
+    if (!alarmOn) {
+      debugPrint('[알림] alarmOn=false → 알람 예약 건너뜀');
+      return;
+    }
+
+    final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     int id = 0;
+    int scheduledCount = 0;
 
-    for (int h = startHour; h <= endHour; h++) {
+    for (int h = startHour; h < endHour; h++) {
+      // 정각 알람
       await _scheduleDaily(id++, h, 0, now);
-      if (intervalMinutes == 30 && h != endHour) {
+      scheduledCount++;
+
+      // 30분 간격이면 30분 알람 추가 (마지막 시간 직전까지만)
+      if (intervalMinutes == 30) {
         await _scheduleDaily(id++, h, 30, now);
+        scheduledCount++;
       }
     }
+
+    // endHour 정각 알람 (예: 24시 → 자정 알람)
+    if (endHour < 24) {
+      await _scheduleDaily(id++, endHour, 0, now);
+      scheduledCount++;
+    }
+
+    debugPrint('[알림] 총 $scheduledCount개 알람 예약 완료 ($startHour시~$endHour시, $intervalMinutes분 간격)');
   }
 
   Future<void> _scheduleDaily(
       int id, int h, int m, tz.TZDateTime now) async {
+    // 오늘 기준으로 예약 시각 계산
     tz.TZDateTime scheduledDate =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, h, m);
+
+    // 이미 지난 시간이면 내일로 설정
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
-    int hour12 = h % 12 == 0 ? 12 : h % 12;
-    String amPm = h >= 12 ? '오후' : '오전';
-    String minStr = m == 0 ? '정각' : '$m분';
-    String timeStr = '$amPm $hour12시 $minStr입니다.';
+    final int hour12 = h % 12 == 0 ? 12 : h % 12;
+    final String amPm = h >= 12 ? '오후' : '오전';
+    final String minStr = m == 0 ? '정각' : '$m분';
+    final String timeStr = '$amPm $hour12시 $minStr';
 
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
       channelDescription: _channelDesc,
@@ -129,24 +161,53 @@ class NotificationService {
       showWhen: true,
       enableVibration: true,
       playSound: true,
+      // 잠금 화면에도 전체 내용 표시
+      visibility: NotificationVisibility.public,
+      // 헤드업 알림 강제
+      fullScreenIntent: false,
     );
 
-    const NotificationDetails platformDetails = NotificationDetails(
+    final NotificationDetails platformDetails = NotificationDetails(
       android: androidDetails,
-      iOS: DarwinNotificationDetails(
-          interruptionLevel: InterruptionLevel.timeSensitive),
+      iOS: const DarwinNotificationDetails(
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      ),
     );
 
-    await flutterLocalNotificationsPlugin.zonedSchedule(
-      id,
-      '중심 유지 App 리마인더',
-      '$timeStr 유지 비중을 지금 기록하세요!',
-      scheduledDate,
-      platformDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
+    try {
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        id,
+        '중심 유지 App 리마인더',
+        '$timeStr입니다. 유지 비중을 지금 기록하세요!',
+        scheduledDate,
+        platformDetails,
+        // exactAllowWhileIdle: 도즈 모드(절전)에서도 정확히 울림
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        // time: 매일 같은 시간에 반복
+        matchDateTimeComponents: DateTimeComponents.time,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+      debugPrint('[알림] 예약 성공 id=$id → $scheduledDate ($timeStr)');
+    } catch (e) {
+      // 정밀 알람 권한이 없을 경우 inexact로 fallback
+      debugPrint('[알림] exactAllowWhileIdle 실패, inexact로 fallback: $e');
+      try {
+        await flutterLocalNotificationsPlugin.zonedSchedule(
+          id,
+          '중심 유지 App 리마인더',
+          '$timeStr입니다. 유지 비중을 지금 기록하세요!',
+          scheduledDate,
+          platformDetails,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+        );
+        debugPrint('[알림] inexact 예약 성공 id=$id → $scheduledDate ($timeStr)');
+      } catch (e2) {
+        debugPrint('[알림] 알람 예약 완전 실패 id=$id: $e2');
+      }
+    }
   }
 }

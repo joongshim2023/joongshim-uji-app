@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "joongshim_uji_app",
-      "version": "1.2.0+6",
+      "version": "1.2.1+7",
       "dependencies": [
         "cloud_firestore",
         "cupertino_icons",
@@ -17,6 +17,7 @@
         "flutter_local_notifications",
         "google_sign_in",
         "intl",
+        "package_info_plus",
         "provider",
         "share_plus",
         "shared_preferences",
@@ -1010,6 +1011,31 @@
         "file",
         "path",
         "string_scanner"
+      ]
+    },
+    {
+      "name": "package_info_plus",
+      "version": "8.3.1",
+      "dependencies": [
+        "clock",
+        "ffi",
+        "flutter",
+        "flutter_web_plugins",
+        "http",
+        "meta",
+        "package_info_plus_platform_interface",
+        "path",
+        "web",
+        "win32"
+      ]
+    },
+    {
+      "name": "package_info_plus_platform_interface",
+      "version": "3.2.1",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
       ]
     }
   ],

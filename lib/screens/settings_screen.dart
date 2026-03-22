@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../theme/app_theme.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../services/auth_service.dart';
 import '../services/energy_service.dart';
 import '../services/notification_service.dart';
@@ -76,11 +77,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ignore: unused_field (시계형 복원 시 재사용)
   String _inputType = 'bar';
   bool _isLoading = true;
+  String _appVersion = '';
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = 'v${info.version} (${info.buildNumber})';
+      });
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -438,6 +450,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _showErrorDialog('로그아웃 실패', '오류가 발생했습니다.\n$e');
                     }
                   },
+                ),
+                const SizedBox(height: 16),
+                _buildSectionHeader("앱 정보"),
+                ListTile(
+                  leading: const Icon(Icons.info_outline, color: AppTheme.mutedTeal),
+                  title: const Text("버전 정보", style: TextStyle(color: AppTheme.textWhite, fontSize: 15)),
+                  trailing: Text(
+                    _appVersion,
+                    style: const TextStyle(color: AppTheme.textGray, fontSize: 13),
+                  ),
                 ),
                 const SizedBox(height: 24),
               ],
