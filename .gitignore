@@ -1,2 +1,9 @@
 build/
-build/
+android/joongshim-uji-release.jks
+android/key.properties
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+ios/Runner/Info.plist
+service_account.json
+service_account_new.json
+
