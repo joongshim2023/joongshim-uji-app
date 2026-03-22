@@ -9,9 +9,11 @@ import 'screens/trend_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'services/notification_service.dart';
+import 'services/update_service.dart';
 import 'firebase_options.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,12 +70,97 @@ class MainNavigator extends StatefulWidget {
 
 class _MainNavigatorState extends State<MainNavigator> {
   int _currentIndex = 0;
-  
+
   final List<Widget> _screens = [
     const HomeScreen(),
     const TrendScreen(),
     const SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 앱 시작 후 짧은 딜레이 후 업데이트 체크 (UI 렌더 후)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(seconds: 2), _checkForUpdate);
+    });
+  }
+
+  Future<void> _checkForUpdate() async {
+    final result = await UpdateService().checkForUpdate();
+    if (!result.hasUpdate || !mounted) return;
+
+    // ignore: use_build_context_synchronously
+    showDialog(
+      context: context,
+      barrierDismissible: !result.forceUpdate, // 강제 업데이트면 바깥 탭 닫기 불가
+      builder: (_) => PopScope(
+        canPop: !result.forceUpdate, // 강제 업데이트면 뒤로 가기 불가
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF1A2035),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4ECDC4).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.system_update_outlined, color: Color(0xFF4ECDC4), size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      result.forceUpdate ? '업데이트 필요' : '새 버전 출시!',
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'v${result.latestVersion}',
+                      style: const TextStyle(color: Color(0xFF4ECDC4), fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            result.message ?? '새로운 버전이 출시되었습니다. 업데이트 후 더 좋은 경험을 누려보세요.',
+            style: const TextStyle(color: Color(0xFF9AA3B2), fontSize: 14, height: 1.6),
+          ),
+          actions: [
+            if (!result.forceUpdate)
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('나중에', style: TextStyle(color: Color(0xFF9AA3B2))),
+              ),
+            TextButton(
+              onPressed: () async {
+                final url = Uri.parse(result.storeUrl ?? '');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4ECDC4),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '업데이트',
+                  style: TextStyle(color: Color(0xFF0D1421), fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

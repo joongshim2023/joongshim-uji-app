@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../theme/app_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/auth_service.dart';
@@ -73,7 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _startHour = 7;
   int _endHour = 24;
   int _alarmInterval = 60;
-  bool _alarmOn = false;
+  bool _alarmOn = true; // 신규 유저 기본값 ON
   // ignore: unused_field (시계형 복원 시 재사용)
   String _inputType = 'bar';
   bool _isLoading = true;
@@ -103,7 +104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
          _startHour = data['startHour'] ?? 7;
          _endHour = data['endHour'] ?? 24;
          _alarmInterval = data['alarmInterval'] ?? 60;
-         _alarmOn = data['alarmOn'] ?? false;
+         _alarmOn = data['alarmOn'] ?? true; // 저장된 값 없으면 기본 ON
          _inputType = data['inputType'] ?? 'bar';
          _isLoading = false;
       });
@@ -286,9 +287,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         int endH = data['endHour'] ?? 24;
         int totalMin = data['totalActiveMinutes'] ?? 0;
         num eff = data['efficiencyPct'] ?? 0;
-        buf.writeln('📅 $date');
+        buf.writeln('[$date]');
         buf.writeln('  활동 시간: $startH:00 ~ $endH:00');
-        buf.writeln('  유지 시간: $totalMin분');
+        buf.writeln('  유지 시간: ${totalMin}분');
         buf.writeln('  유지율:   $eff%');
         buf.writeln();
       }
@@ -297,14 +298,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         buf.writeln('해당 기간에 기록된 데이터가 없습니다.');
       }
 
-      final bytes = utf8.encode(buf.toString());
-      final file = XFile.fromData(
-        Uint8List.fromList(bytes),
-        name: 'uji_logs_${DateFormat('yyyyMMdd').format(DateTime.now())}.txt',
-        mimeType: 'text/plain',
-      );
+      // 임시 디렉토리에 실제 .txt 파일 저장 후 공유 (일부 앱에서 XFile.fromData 인식 불가 문제 해결)
+      final dir = await getTemporaryDirectory();
+      final fileName = 'uji_logs_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.txt';
+      final filePath = '${dir.path}/$fileName';
+      final ioFile = File(filePath);
+      await ioFile.writeAsString(buf.toString(), encoding: utf8);
 
-      await Share.shareXFiles([file], text: '중심 유지 App 활동 기록');
+      final xFile = XFile(filePath, mimeType: 'text/plain', name: fileName);
+      await Share.shareXFiles([xFile], subject: '중심유지 App 활동 기록');
     } catch (e) {
       _showErrorDialog('내보내기 실패', '파일 생성 중 오류가 발생했습니다.\n$e');
     }
@@ -416,7 +418,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSectionHeader("알림 시스템"),
                 _buildListTile(
                   icon: Icons.notifications_active_outlined,
-                  title: "푸시 알림 켜기",
+                  title: "알림 켜기",
                   isSwitch: true,
                   value: _alarmOn,
                   onSwitch: (val) async {
@@ -470,7 +472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (_alarmOn) 
                   _buildListTile(
                     icon: Icons.timer_outlined, 
-                    title: "에너지 리마인더 간격", 
+                    title: "알람 간격", 
                     trailingText: "$_alarmInterval분",
                     onTap: _showIntervalPicker,
                   ),

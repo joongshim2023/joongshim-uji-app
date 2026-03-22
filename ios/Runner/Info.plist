@@ -86,5 +86,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- App Store 수출 규정(Export Compliance) 사전 선언
+	     이 앱은 HTTPS 표준 암호화(Firebase, Google Sign-In)만 사용하며
+	     비표준/군사용 암호화를 사용하지 않으므로 false로 설정합니다.
+	     이 설정으로 App Store Connect 제출 시 암호화 질문이 자동 처리됩니다. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

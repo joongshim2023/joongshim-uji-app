@@ -72,7 +72,7 @@ class EnergyService {
   Future<Map<String, dynamic>> getUserSettings(String userId) async {
     var doc = await _db.collection('users').doc(userId).collection('settings').doc('default').get();
     if (doc.exists) return doc.data() as Map<String, dynamic>;
-    return {'startHour': 7, 'endHour': 24, 'alarmInterval': 60, 'alarmOn': false, 'inputType': 'bar'};
+    return {'startHour': 7, 'endHour': 24, 'alarmInterval': 60, 'alarmOn': true, 'inputType': 'bar'};
   }
 
   Future<void> updateUserSettings(String userId, Map<String, dynamic> data) async {
