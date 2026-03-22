@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
@@ -14,15 +15,36 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   final _emailCtrl = TextEditingController();
   final _pwdCtrl = TextEditingController();
+  final _pwdFocusNode = FocusNode();
 
   bool _isLogin = true;
   bool _saveEmail = false;
   bool _isLoading = false;
+  bool _obscurePassword = true;  // 비밀번호 숨김 상태
+  Timer? _showPasswordTimer;
 
   @override
   void initState() {
     super.initState();
     _loadSavedEmail();
+  }
+
+  @override
+  void dispose() {
+    _showPasswordTimer?.cancel();
+    _pwdFocusNode.dispose();
+    _emailCtrl.dispose();
+    _pwdCtrl.dispose();
+    super.dispose();
+  }
+
+  // 비밀번호 표시 토글: 5초 후 자동 숨김
+  void _toggleShowPassword() {
+    _showPasswordTimer?.cancel();
+    setState(() => _obscurePassword = false);
+    _showPasswordTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _obscurePassword = true);
+    });
   }
 
   Future<void> _loadSavedEmail() async {
@@ -196,6 +218,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _emailCtrl,
                 style: const TextStyle(color: AppTheme.textWhite),
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => FocusScope.of(context).requestFocus(_pwdFocusNode),
                 decoration: InputDecoration(
                   hintText: '이메일',
                   hintStyle: const TextStyle(color: AppTheme.textGray),
@@ -207,14 +231,26 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: _pwdCtrl,
-                obscureText: true,
+                focusNode: _pwdFocusNode,
+                obscureText: _obscurePassword,
                 style: const TextStyle(color: AppTheme.textWhite),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) { if (!_isLoading) _submit(); },
                 decoration: InputDecoration(
                   hintText: '비밀번호 (알파벳+숫자 6자 이상)',
                   hintStyle: const TextStyle(color: AppTheme.textGray),
                   filled: true,
                   fillColor: AppTheme.bgCard,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: AppTheme.textGray,
+                      size: 20,
+                    ),
+                    tooltip: '비밀번호 표시 (5초)',
+                    onPressed: _obscurePassword ? _toggleShowPassword : null,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),

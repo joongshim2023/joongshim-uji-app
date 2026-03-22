@@ -24,8 +24,11 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   // google_sign_in 7.x: Android/iOS에서만 초기화 (웹에서는 불필요)
+  // serverClientId = google-services.json의 client_type:3 (Web Client ID)
   if (!kIsWeb) {
-    await GoogleSignIn.instance.initialize();
+    await GoogleSignIn.instance.initialize(
+      serverClientId: '880648187658-bfejjnap1bn8rq8usu7e5l2td7g1g9mc.apps.googleusercontent.com',
+    );
   }
   runApp(const JoongshimUjiApp());
 }

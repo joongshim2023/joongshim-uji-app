@@ -426,6 +426,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSectionHeader("계정 및 데이터"),
                 _buildListTile(icon: Icons.person_outline, title: "프로필", onTap: _showProfile),
                 _buildListTile(icon: Icons.text_snippet_outlined, title: "기록 내보내기 (TXT)", onTap: _showExportPopup),
+                const SizedBox(height: 16),
+                _buildSectionHeader("계정 관리"),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.redAccent),
+                  title: const Text("로그아웃", style: TextStyle(color: Colors.redAccent, fontSize: 15, fontWeight: FontWeight.bold)),
+                  onTap: () async {
+                    try {
+                      await _auth.signOut();
+                    } catch (e) {
+                      _showErrorDialog('로그아웃 실패', '오류가 발생했습니다.\n$e');
+                    }
+                  },
+                ),
+                const SizedBox(height: 24),
               ],
             ),
           )

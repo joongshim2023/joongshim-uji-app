@@ -27,25 +27,21 @@ class AuthService {
       authProvider.setCustomParameters({'prompt': 'select_account'});
       return await _auth.signInWithPopup(authProvider);
     } else {
-      // Android/iOS: google_sign_in 7.x 새 API
-      // GoogleSignIn.instance.initialize()는 main.dart에서 호출해야 함
+      // Android/iOS: google_sign_in 7.x
       final result = await GoogleSignIn.instance.authenticate();
-      // idToken만으로 Firebase 인증 (accessToken 불필요)
       final idToken = result.authentication.idToken;
       if (idToken == null) throw Exception('Google 로그인 실패: idToken을 가져올 수 없습니다.');
-
       final credential = GoogleAuthProvider.credential(idToken: idToken);
       return await _auth.signInWithCredential(credential);
     }
   }
 
   Future<void> signOut() async {
-    if (!kIsWeb) {
-      // 모바일에서만 GoogleSignIn signOut (웹에서는 initialize 안 됨)
-      try {
-        await GoogleSignIn.instance.signOut();
-      } catch (_) {}
-    }
+    // Firebase signOut을 먼저 즉시 실행 (Android 지연 방지)
     await _auth.signOut();
+    if (!kIsWeb) {
+      // GoogleSignIn signOut은 백그라운드로 처리 (UI 블로킹 방지)
+      GoogleSignIn.instance.signOut().catchError((_) {});
+    }
   }
 }

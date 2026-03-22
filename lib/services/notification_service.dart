@@ -9,7 +9,12 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  static const String _channelId = 'joongshim_uji_channel';
+  static const String _channelName = '중심 유지 알림';
+  static const String _channelDesc = '유지 비중 기록 리마인더';
+
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
     if (kIsWeb) return;
@@ -20,7 +25,8 @@ class NotificationService {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -31,16 +37,28 @@ class NotificationService {
       iOS: initializationSettingsIOS,
     );
 
-    // flutter_local_notifications 18.x: positional argument
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
     if (Platform.isAndroid) {
-      await flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
-      await flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestExactAlarmsPermission();
+      // Android 알림 채널 명시적 생성 → 앱 알림 목록에 등록됨
+      final androidPlugin = flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _channelId,
+          _channelName,
+          description: _channelDesc,
+          importance: Importance.max,
+          enableVibration: true,
+          playSound: true,
+        ),
+      );
+
+      // 알림 권한 요청
+      await androidPlugin?.requestNotificationsPermission();
+      await androidPlugin?.requestExactAlarmsPermission();
     }
   }
 
@@ -49,14 +67,19 @@ class NotificationService {
     bool granted = true;
     if (Platform.isAndroid) {
       final androidImplementation = flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      bool? notifGranted = await androidImplementation?.requestNotificationsPermission();
-      bool? alarmGranted = await androidImplementation?.requestExactAlarmsPermission();
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      bool? notifGranted =
+          await androidImplementation?.requestNotificationsPermission();
+      bool? alarmGranted =
+          await androidImplementation?.requestExactAlarmsPermission();
       granted = (notifGranted != false) && (alarmGranted != false);
     } else if (Platform.isIOS) {
       final iosImplementation = flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-      bool? iosGranted = await iosImplementation?.requestPermissions(alert: true, badge: true, sound: true);
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>();
+      bool? iosGranted = await iosImplementation?.requestPermissions(
+          alert: true, badge: true, sound: true);
       granted = iosGranted ?? true;
     }
     return granted;
@@ -84,8 +107,10 @@ class NotificationService {
     }
   }
 
-  Future<void> _scheduleDaily(int id, int h, int m, tz.TZDateTime now) async {
-    tz.TZDateTime scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, h, m);
+  Future<void> _scheduleDaily(
+      int id, int h, int m, tz.TZDateTime now) async {
+    tz.TZDateTime scheduledDate =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, h, m);
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
@@ -95,30 +120,33 @@ class NotificationService {
     String minStr = m == 0 ? '정각' : '$m분';
     String timeStr = '$amPm $hour12시 $minStr입니다.';
 
-    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'joongshim_uji_channel',
-      '중심 유지 알림',
-      channelDescription: '유지 비중 기록 리마인더',
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDesc,
       importance: Importance.max,
       priority: Priority.high,
-      showWhen: false,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
     );
 
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: DarwinNotificationDetails(interruptionLevel: InterruptionLevel.timeSensitive),
+    const NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(
+          interruptionLevel: InterruptionLevel.timeSensitive),
     );
 
-    // flutter_local_notifications 18.x: positional arguments
     await flutterLocalNotificationsPlugin.zonedSchedule(
       id,
       '중심 유지 App 리마인더',
       '$timeStr 유지 비중을 지금 기록하세요!',
       scheduledDate,
-      platformChannelSpecifics,
+      platformDetails,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 }
