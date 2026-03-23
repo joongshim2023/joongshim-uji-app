@@ -28,7 +28,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _localStartHour = 7;
   int _localEndHour = 24;
-  String _inputType = 'bar';
+
+  // global 기본값 (settings/default에서 로드, 날짜별 로그 없을 때 사용)
+  int _defaultStartHour = 7;
+  int _defaultEndHour = 24;
+
+  // 다음날(자정 초과) 구간에서 선택된 시간인지 구분
+  bool _isNextDaySelected = false;
+
+  // 타임라인 스크롤 컨트롤러
+  final ScrollController _timelineScrollController = ScrollController();
+  bool _hasScrolledToCurrentTime = false;
 
   @override
   void initState() {
@@ -46,26 +56,91 @@ class _HomeScreenState extends State<HomeScreen> {
       var data = await _energy.getUserSettings(uid);
       if (mounted) {
         setState(() {
-          // 일일 설정이 로드되기 전에 먼저 전역 기본값을 세팅합니다
-          if (_localStartHour == 7 && _localEndHour == 24) {
-             _localStartHour = data['startHour'] ?? 7;
-             _localEndHour = data['endHour'] ?? 24;
-          }
-          _inputType = data['inputType'] ?? 'bar';
+          _defaultStartHour = data['startHour'] ?? 7;
+          _defaultEndHour = data['endHour'] ?? 24;
+          // 첫 로드 시 local도 default로 초기화 (StreamBuilder가 날짜별로 덮어씀)
+          _localStartHour = _defaultStartHour;
+          _localEndHour = _defaultEndHour;
         });
+        _scrollToCurrentTime();
       }
       NotificationService().rescheduleAlarms(
         startHour: data['startHour'] ?? 7,
         endHour: data['endHour'] ?? 24,
         intervalMinutes: data['alarmInterval'] ?? 60,
-        alarmOn: data['alarmOn'] ?? false,
+        alarmOn: data['alarmOn'] ?? true,
       );
+    }
+  }
+
+  /// 현재 시간(또는 선택된 시간)이 타임라인 중앙에 오도록 스크롤
+  void _scrollToCurrentTime() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_timelineScrollController.hasClients) return;
+      
+      bool isToday = DateFormat('yyyyMMdd').format(_selectedDate) ==
+          DateFormat('yyyyMMdd').format(_now);
+      int targetHour = isToday ? _now.hour : _selectedHour;
+
+      // 각 TimelineRow의 대략적인 높이 (vertical margin 2*2 + padding 8*2 + content ≈ 46px)
+      const double rowHeight = 46.0;
+      final double viewportHeight = _timelineScrollController.position.viewportDimension;
+
+      // 타임라인 아이템 총 수 계산 (자정 초과 지원)
+      int totalRows = _timelineRowCount;
+
+      // 목표 행 인덱스 (0-based)
+      int targetIndex = targetHour; // 0~23 내에서의 위치
+      double scrollOffset =
+          (targetIndex * rowHeight) - (viewportHeight / 2) + (rowHeight / 2);
+      scrollOffset = scrollOffset.clamp(
+        0.0,
+        math.max(0, totalRows * rowHeight - viewportHeight),
+      );
+
+      _timelineScrollController.animateTo(
+        scrollOffset,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  /// 자정 초과 여부 (endHour < startHour OR endHour >= 24)
+  bool get _isOvernightMode => _localEndHour < _localStartHour || _localEndHour >= 24;
+
+  /// 실제 취침 시간 (다음날 인코딩 24+h → h 로 변환)
+  int get _normalizedEndHour => _localEndHour >= 24 ? _localEndHour - 24 : _localEndHour;
+
+  /// 타임라인에 표시할 총 행 수 (자정 초과시 0~normalizedEndHour 행 추가)
+  int get _timelineRowCount {
+    if (_isOvernightMode) {
+      return 24 + _normalizedEndHour + 1;
+    }
+    return 24;
+  }
+
+  // 선택된 시간이 활동 시간인지 (다음날 구간 고려)
+  bool get _isSelectedHourActive {
+    if (_isNextDaySelected) return true;  // 다음날 구간은 항상 활성
+    if (_isOvernightMode) return _selectedHour >= _localStartHour;
+    int end = _localEndHour == 24 ? 23 : _localEndHour;
+    return _selectedHour >= _localStartHour && _selectedHour <= end;
+  }
+
+  bool _isActive(int hour) {
+    if (_isOvernightMode) {
+      return hour >= _localStartHour || hour < _normalizedEndHour;
+    } else {
+      int end = _localEndHour == 24 ? 23 : _localEndHour;
+      return hour >= _localStartHour && hour <= end;
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _timelineScrollController.dispose();
     super.dispose();
   }
 
@@ -146,17 +221,56 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         _selectedHour = 12;
       }
+      _isNextDaySelected = false;
+      _hasScrolledToCurrentTime = false;
     });
+    _scrollToCurrentTime();
   }
 
-  void _showTimeSettings() {
+  Future<void> _showTimeSettings() async {
+    final u = uid;
+    if (u == null) return;
+
+    // 인접 날짜 제약 로드
+    int minStartHour = 0;   // 기상시간 최솟값
+    int maxEndHour = _defaultStartHour; // 취침시간 최댓값 (다음날 기상시간, 기본은 default)
+
+    // 전날 취침시간 → 기상시간 하한
+    // 전날 데이터 없으면: minStartHour = 0 (제약 없음)
+    final prevData = await _energy.getDailyLogOnce(u, _selectedDate.subtract(const Duration(days: 1)));
+    if (prevData != null) {
+      final int prevEnd = prevData['endHour'] ?? 24;
+      final int prevStart = prevData['startHour'] ?? 7;
+      if (prevEnd < prevStart) {
+        // 전날이 자정 초과(overnight) → 취침이 다음날 새벽 prevEnd시
+        minStartHour = prevEnd;
+      }
+    }
+
+    // 다음날 기상시간 → 취침시간 자정 초과 상한
+    // 다음날 데이터 있으면: 그 날의 기상시간
+    // 다음날 데이터 없으면: default 기상시간
+    final nextData = await _energy.getDailyLogOnce(u, _selectedDate.add(const Duration(days: 1)));
+    if (nextData != null) {
+      maxEndHour = (nextData['startHour'] as int?) ?? _defaultStartHour;
+    }
+
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (context) {
-        int tempStart = _localStartHour;
+        int tempStart = _localStartHour.clamp(minStartHour, 23);
         int tempEnd = _localEndHour;
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            // tempEnd 유효성 보정: 같은날(tempStart..24) 또는 다음날 인코딩(24+0..24+maxEndHour)
+            bool tempEndValid = (tempEnd >= tempStart && tempEnd <= 24) || (tempEnd >= 24 && tempEnd <= 24 + maxEndHour);
+            if (!tempEndValid) tempEnd = tempStart;
+            bool isOvernight = tempEnd < tempStart || tempEnd >= 24;
+            // 다음날 실제 시간 (인코딩 해제)
+            int displayEnd = tempEnd >= 24 ? tempEnd - 24 : tempEnd;
+
             return AlertDialog(
               backgroundColor: AppTheme.bgCard,
               title: const Text('활동 시간 설정', style: TextStyle(color: AppTheme.textWhite)),
@@ -165,6 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text('${DateFormat('yyyy년 MM월 dd일').format(_selectedDate)}의 활동 시간', style: const TextStyle(color: AppTheme.textGray, fontSize: 12)),
                   const SizedBox(height: 20),
+                  // 기상 시간
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -173,13 +288,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         value: tempStart,
                         dropdownColor: AppTheme.timelineBg,
                         style: const TextStyle(color: AppTheme.activeGreen),
-                        items: List.generate(24, (i) => i).map((h) => DropdownMenuItem(value: h, child: Text('$h시'))).toList(),
+                        items: List.generate(24, (i) => i)
+                            .where((h) => h >= minStartHour)  // 전날 취침시간 이상만
+                            .map((h) => DropdownMenuItem(value: h, child: Text('$h시')))
+                            .toList(),
                         onChanged: (val) {
-                          if (val != null && val < tempEnd) setDialogState(() => tempStart = val);
+                          if (val != null) setDialogState(() => tempStart = val);
                         },
                       )
                     ],
                   ),
+                  // 취침 시간
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -188,13 +307,47 @@ class _HomeScreenState extends State<HomeScreen> {
                         value: tempEnd,
                         dropdownColor: AppTheme.timelineBg,
                         style: const TextStyle(color: AppTheme.activeGreen),
-                        items: List.generate(25, (i) => i).map((h) => DropdownMenuItem(value: h, child: Text('$h시'))).toList(),
+                        items: [
+                          // 1. 같은날: tempStart ~ 24 (24시 = 자정)
+                          for (int h = tempStart; h <= 24; h++)
+                            DropdownMenuItem(value: h, child: Text(h == 24 ? '24시 (자정)' : '$h시')),
+                          // 2. 다음날: 1시부터 maxEndHour까지 (0시=자정=24시이므로 skip)
+                          for (int h = 1; h <= maxEndHour; h++)
+                            DropdownMenuItem(value: 24 + h, child: Text('$h시 (다음날)')),
+                        ],
                         onChanged: (val) {
-                          if (val != null && val > tempStart) setDialogState(() => tempEnd = val);
+                          if (val != null) setDialogState(() => tempEnd = val);
                         },
                       )
                     ],
                   ),
+                  // 안내 메시지
+                  if (minStartHour > 0)
+                    _constraintHint('전날 취침시간($minStartHour시) 이후부터 기상 가능합니다.'),
+                  _constraintHint('다음날 기상시간(${maxEndHour}시)까지 자정 초과 취침 가능합니다.'),
+                  if (isOvernight)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.softIndigo.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, size: 14, color: AppTheme.softIndigo),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '다음날 새벽 $displayEnd시까지로 설정됩니다.',
+                                style: const TextStyle(color: AppTheme.softIndigo, fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
               actions: [
@@ -203,21 +356,39 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () {
                     _updateSettings(tempStart, tempEnd);
                     Navigator.pop(context);
-                  }, 
-                  child: const Text('저장', style: TextStyle(color: AppTheme.mutedTeal))
+                  },
+                  child: const Text('저장', style: TextStyle(color: AppTheme.mutedTeal)),
                 ),
               ],
             );
-          }
+          },
         );
-      }
+      },
     );
   }
 
-  bool _isActive(int h) {
-    int end = _localEndHour == 24 ? 23 : _localEndHour;
-    return h >= _localStartHour && h <= end;
+  /// 제약사항 안내 위젯
+  Widget _constraintHint(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.orange.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange),
+            const SizedBox(width: 6),
+            Expanded(child: Text(message, style: const TextStyle(color: Colors.orange, fontSize: 11))),
+          ],
+        ),
+      ),
+    );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -229,36 +400,74 @@ class _HomeScreenState extends State<HomeScreen> {
       stream: _energy.getDailyLogStream(uid!, _dateKey),
       builder: (context, snapshot) {
         Map<String, dynamic> recordsMap = {};
-        int totalActive = 0;
-        int pct = 0;
 
         if (snapshot.hasData && snapshot.data!.exists) {
           final data = snapshot.data!.data() as Map<String, dynamic>;
           recordsMap = data['records'] ?? {};
-          
-          // 동기화 시 로컬 값 업데이트 (비동기 화면 렌더링 중 setState 제외)
+
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              if (data['startHour'] != null && _localStartHour != data['startHour']) setState(() => _localStartHour = data['startHour']);
-              if (data['endHour'] != null && _localEndHour != data['endHour']) setState(() => _localEndHour = data['endHour']);
+              bool changed = false;
+              // 해당 날짜에 저장된 기상/취침시간이 있으면 그것을 사용
+              if (data['startHour'] != null && _localStartHour != data['startHour']) {
+                _localStartHour = data['startHour'];
+                changed = true;
+              }
+              if (data['endHour'] != null && _localEndHour != data['endHour']) {
+                _localEndHour = data['endHour'];
+                changed = true;
+              }
+              if (changed) setState(() {});
+              if (!_hasScrolledToCurrentTime) {
+                _hasScrolledToCurrentTime = true;
+                _scrollToCurrentTime();
+              }
+            }
+          });
+        } else {
+          // 해당 날짜에 데이터(기상/취침 포함)가 없으면 → default 값으로 리셋
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              bool changed = _localStartHour != _defaultStartHour || _localEndHour != _defaultEndHour;
+              if (changed) {
+                setState(() {
+                  _localStartHour = _defaultStartHour;
+                  _localEndHour = _defaultEndHour;
+                });
+              }
+              if (!_hasScrolledToCurrentTime) {
+                _hasScrolledToCurrentTime = true;
+                _scrollToCurrentTime();
+              }
             }
           });
         }
         
-        // Calculate realtime metrics including optimistic updates
+        // 자정 초과 여부
+        bool isOvernight = _isOvernightMode;
+
+        // 유지 비중 계산 (자정 초과 포함)
         Map<String, dynamic> mergedRecords = Map.from(recordsMap);
         _optimisticRecords.forEach((key, val) => mergedRecords[key] = val);
         
-        int end = _localEndHour == 24 ? 23 : _localEndHour;
-        int goalMins = (end - _localStartHour + 1) * 60;
+        // 총 목표 시간 계산
+        int totalHours;
+        if (isOvernight) {
+          totalHours = (24 - _localStartHour) + _normalizedEndHour;
+        } else {
+          int end = _localEndHour == 24 ? 23 : _localEndHour;
+          totalHours = end - _localStartHour + 1;
+        }
+        int goalMins = totalHours * 60;
         
+        int totalActive = 0;
         mergedRecords.forEach((key, val) {
           int h = int.parse(key);
-          if (h >= _localStartHour && h <= end) {
+          if (_isActive(h)) {
             totalActive += (val as num).toInt();
           }
         });
-        pct = goalMins > 0 ? (totalActive / goalMins * 100).toInt() : 0;
+        int pct = goalMins > 0 ? (totalActive / goalMins * 100).toInt() : 0;
 
         bool isToday = DateFormat('yyyyMMdd').format(_selectedDate) == DateFormat('yyyyMMdd').format(_now);
         int currentHour = isToday ? _now.hour : -1;
@@ -274,13 +483,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // TODO: 시계형 복원 시 아래 주석 해제하고 바 타입 주석 처리
-                    // _inputType == 'clock' ? _buildClockPickerPanel(recordsMap) : _buildClockPanel(recordsMap)
                     Expanded(
                       flex: 4, 
                       child: _buildClockPanel(recordsMap),
                     ),
-                    Expanded(flex: 8, child: _buildTimeline(recordsMap, currentHour, currentMin)),
+                    Expanded(flex: 8, child: _buildTimeline(recordsMap, currentHour, currentMin, isOvernight)),
                   ],
                 ),
               )
@@ -387,6 +594,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSummaryBadge(int totalMins, int pct) {
     int h = totalMins ~/ 60;
     int m = totalMins % 60;
+    String timeRangeLabel = _isOvernightMode
+        ? '$_localStartHour시 ~ 다음날 $_normalizedEndHour시'
+        : '$_localStartHour시 ~ $_localEndHour시';
+
     return GestureDetector(
       onTap: _showTimeSettings,
       child: Container(
@@ -424,7 +635,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const Icon(Icons.schedule, size: 14, color: AppTheme.softIndigo),
                   const SizedBox(width: 4),
-                  Text('활동시간 설정: $_localStartHour시 ~ $_localEndHour시', style: const TextStyle(fontSize: 12, color: AppTheme.textWhite)),
+                  Text('활동시간 설정: $timeRangeLabel', style: const TextStyle(fontSize: 12, color: AppTheme.textWhite)),
                   const SizedBox(width: 4),
                   const Icon(Icons.edit, size: 12, color: AppTheme.textGray),
                 ],
@@ -578,7 +789,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _optimisticRecords.forEach((key, val) => mergedRecords[key] = val);
 
     int currentRecord = ((mergedRecords[_selectedHour.toString().padLeft(2, '0')] ?? 0) as num).toInt();
-    bool isActiveWindow = _isActive(_selectedHour);
+    bool isActiveWindow = _isSelectedHourActive;  // 다음날 구간 고려
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 8, 16),
@@ -621,29 +832,94 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTimeline(Map<String, dynamic> records, int currentHour, int currentMin) {
+  Widget _buildTimeline(Map<String, dynamic> records, int currentHour, int currentMin, bool isOvernight) {
     Map<String, dynamic> mergedRecords = Map.from(records);
     _optimisticRecords.forEach((key, val) => mergedRecords[key] = val);
+
+    // 자정 초과: 0~23 + 다음날 0~(normalizedEndHour-1) 표시
+    List<int> hours = List.generate(24, (i) => i);
+    List<bool> isNextDay = List.generate(24, (_) => false);
+
+    if (isOvernight) {
+      // 다음날 새벽 시간 추가: 0 ~ normalizedEndHour-1 (취침시각 제외)
+      for (int h = 0; h < _normalizedEndHour; h++) {
+        hours.add(h);
+        isNextDay.add(true);
+      }
+    }
 
     return Container(
       margin: const EdgeInsets.fromLTRB(8, 8, 16, 16),
       child: ListView.builder(
-        itemCount: 24,
+        controller: _timelineScrollController,
+        itemCount: hours.length,
         itemBuilder: (context, index) {
-          int record = ((mergedRecords[index.toString().padLeft(2, '0')] ?? 0) as num).toInt();
-          return TimelineRow(
-            hour: index,
-            minutes: record,
-            isSelected: _selectedHour == index,
-            isCurrent: currentHour == index,
-            currentMinute: currentMin,
-            isActiveWindow: _isActive(index),
-            onTap: () {
-               _flushPending();
-               setState(() => _selectedHour = index);
-            },
+          int hour = hours[index];
+          bool nextDay = isNextDay[index];
+          int record = ((mergedRecords[hour.toString().padLeft(2, '0')] ?? 0) as num).toInt();
+
+          // 자정 구분선 표시
+          bool showMidnightDivider = isOvernight && index == 24;
+
+          // 활동 시간 여부
+          bool activeWindow;
+          if (nextDay) {
+            activeWindow = true;  // 다음날 구간: 항상 활성 (0~endHour-1)
+          } else if (isOvernight) {
+            activeWindow = hour >= _localStartHour;  // 일반 구간: startHour 이상만 활성
+          } else {
+            activeWindow = _isActive(hour);
+          }
+
+          // 선택 상태: 같은 hour라도 일반/다음날 구간 구분
+          bool selected = _selectedHour == hour && (nextDay == _isNextDaySelected);
+
+          return Column(
+            children: [
+              if (showMidnightDivider)
+                _buildMidnightDivider(),
+              TimelineRow(
+                hour: hour,
+                minutes: record,
+                isSelected: selected,
+                isCurrent: currentHour == hour && !nextDay,
+                currentMinute: currentMin,
+                isActiveWindow: activeWindow,
+                isNextDay: nextDay,
+                onTap: () {
+                  _flushPending();
+                  setState(() {
+                    _selectedHour = hour;
+                    _isNextDaySelected = nextDay;  // 다음날 구간인지 기록
+                  });
+                },
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildMidnightDivider() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        children: [
+          Expanded(child: Container(height: 1, color: AppTheme.softIndigo.withOpacity(0.3))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              '자정 (다음날)',
+              style: TextStyle(
+                color: AppTheme.softIndigo.withOpacity(0.7),
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(child: Container(height: 1, color: AppTheme.softIndigo.withOpacity(0.3))),
+        ],
       ),
     );
   }

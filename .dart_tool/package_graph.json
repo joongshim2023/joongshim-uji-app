@@ -5,12 +5,13 @@
   "packages": [
     {
       "name": "joongshim_uji_app",
-      "version": "1.2.3+9",
+      "version": "1.2.5+13",
       "dependencies": [
         "cloud_firestore",
         "cupertino_icons",
         "firebase_auth",
         "firebase_core",
+        "firebase_crashlytics",
         "firebase_messaging",
         "fl_chart",
         "flutter",
@@ -171,6 +172,17 @@
         "google_sign_in_ios",
         "google_sign_in_platform_interface",
         "google_sign_in_web"
+      ]
+    },
+    {
+      "name": "firebase_crashlytics",
+      "version": "5.0.8",
+      "dependencies": [
+        "firebase_core",
+        "firebase_core_platform_interface",
+        "firebase_crashlytics_platform_interface",
+        "flutter",
+        "stack_trace"
       ]
     },
     {
@@ -695,6 +707,18 @@
       "dependencies": [
         "flutter",
         "google_sign_in_platform_interface"
+      ]
+    },
+    {
+      "name": "firebase_crashlytics_platform_interface",
+      "version": "3.8.18",
+      "dependencies": [
+        "_flutterfire_internals",
+        "collection",
+        "firebase_core",
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
       ]
     },
     {

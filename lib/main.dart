@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 import 'screens/trend_screen.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'services/notification_service.dart';
 import 'services/update_service.dart';
 import 'firebase_options.dart';
@@ -17,16 +16,31 @@ import 'package:url_launcher/url_launcher.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await NotificationService().init();
-  } catch(e) {
-    print('Notification Engine Error: $e');
-  }
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Crashlytics 설정 (웹 제외)
+  if (!kIsWeb) {
+    // Flutter 프레임워크 에러 → Crashlytics
+    FlutterError.onError = (errorDetails) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+    };
+    // 비동기 Zone 에러 → Crashlytics
+    // (아래 runZonedGuarded에서 처리)
+  }
+
+  try {
+    await NotificationService().init();
+  } catch(e) {
+    if (!kIsWeb) {
+      await FirebaseCrashlytics.instance.recordError(e, null, reason: 'NotificationService init failure', fatal: false);
+    }
+    debugPrint('Notification Engine Error: $e');
+  }
+
   // google_sign_in 7.x: Android/iOS에서만 초기화 (웹에서는 불필요)
-  // serverClientId = google-services.json의 client_type:3 (Web Client ID)
   if (!kIsWeb) {
     await GoogleSignIn.instance.initialize(
       serverClientId: '880648187658-bfejjnap1bn8rq8usu7e5l2td7g1g9mc.apps.googleusercontent.com',
@@ -80,7 +94,6 @@ class _MainNavigatorState extends State<MainNavigator> {
   @override
   void initState() {
     super.initState();
-    // 앱 시작 후 짧은 딜레이 후 업데이트 체크 (UI 렌더 후)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(seconds: 2), _checkForUpdate);
     });
@@ -93,9 +106,9 @@ class _MainNavigatorState extends State<MainNavigator> {
     // ignore: use_build_context_synchronously
     showDialog(
       context: context,
-      barrierDismissible: !result.forceUpdate, // 강제 업데이트면 바깥 탭 닫기 불가
+      barrierDismissible: !result.forceUpdate,
       builder: (_) => PopScope(
-        canPop: !result.forceUpdate, // 강제 업데이트면 뒤로 가기 불가
+        canPop: !result.forceUpdate,
         child: AlertDialog(
           backgroundColor: const Color(0xFF1A2035),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

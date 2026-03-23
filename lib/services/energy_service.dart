@@ -22,7 +22,7 @@ class EnergyService {
 
       if (snapshot.exists) {
         records = Map<String, dynamic>.from((snapshot.data() as Map<String, dynamic>)['records'] ?? {});
-        sH = startHour; // Overriding with currently requested start hour
+        sH = startHour;
         eH = endHour;
       }
 
@@ -31,15 +31,37 @@ class EnergyService {
         records[hourKey] = minutes;
       }
 
+      // 자정 초과 여부 판단 (endHour < startHour 또는 endHour >= 24로 인코딩된 다음날)
+      bool isOvernight = eH < sH || eH >= 24;
+      // 실제 취침 시간 (24+h 인코딩 해제)
+      int actualEnd = eH >= 24 ? eH - 24 : eH;
+
+      // 활동 시간 여부 헬퍼
+      bool isActive(int h) {
+        if (isOvernight) {
+          return h >= sH || h < actualEnd;  // actualEnd 자체는 취침 시간이므로 불포함
+        } else {
+          int end = eH == 24 ? 23 : eH;
+          return h >= sH && h <= end;
+        }
+      }
+
       int totalActiveMinutes = 0;
       records.forEach((key, value) {
         int h = int.parse(key);
-        if (h >= sH && h <= eH) {
+        if (isActive(h)) {
           totalActiveMinutes += (value as num).toInt();
         }
       });
 
-      int goalMinutes = (eH - sH + 1) * 60;
+      // 목표 시간 계산 (자정 초과 포함)
+      int goalMinutes;
+      if (isOvernight) {
+        goalMinutes = ((24 - sH) + actualEnd) * 60;
+      } else {
+        int end = eH == 24 ? 23 : eH;
+        goalMinutes = (end - sH + 1) * 60;
+      }
       double efficiency = goalMinutes > 0 ? (totalActiveMinutes / goalMinutes) * 100 : 0.0;
 
       transaction.set(logRef, {
@@ -55,6 +77,14 @@ class EnergyService {
 
   Stream<DocumentSnapshot> getDailyLogStream(String userId, String dateId) {
     return _db.collection('users').doc(userId).collection('daily_logs').doc(dateId).snapshots();
+  }
+
+  /// 특정 날짜의 daily_log를 1회 조회 (인접 날짜 제약 확인용)
+  Future<Map<String, dynamic>?> getDailyLogOnce(String userId, DateTime date) async {
+    String dateId = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+    final doc = await _db.collection('users').doc(userId).collection('daily_logs').doc(dateId).get();
+    if (doc.exists) return doc.data() as Map<String, dynamic>;
+    return null;
   }
 
   Stream<QuerySnapshot> getLogsStream(String userId, DateTime start, DateTime end) {

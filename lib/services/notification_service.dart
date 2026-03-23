@@ -3,6 +3,8 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -20,6 +22,68 @@ class NotificationService {
       flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
+
+  // ────────────────────────────────────────────────────────
+  // Firestore 로그 헬퍼
+  // ────────────────────────────────────────────────────────
+
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+
+  /// 알람 이벤트 로그 ('scheduled' | 'fired' | 'error')
+  Future<void> logAlarmEvent({
+    required String event,
+    String? errorMessage,
+    Map<String, dynamic>? extra,
+  }) async {
+    if (kIsWeb) return;
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('alarm_logs')
+          .add({
+        'event': event,
+        'timestamp': FieldValue.serverTimestamp(),
+        'platform': Platform.isAndroid ? 'android' : 'ios',
+        'error': errorMessage,
+        ...?extra,
+      });
+    } catch (e) {
+      debugPrint('[로그] alarm_logs 저장 실패: $e');
+    }
+  }
+
+  /// 에러 로그 저장
+  Future<void> logError({
+    required String location,
+    required dynamic error,
+    StackTrace? stackTrace,
+  }) async {
+    if (kIsWeb) return;
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('error_logs')
+          .add({
+        'location': location,
+        'error': error.toString(),
+        'stackTrace': stackTrace?.toString(),
+        'timestamp': FieldValue.serverTimestamp(),
+        'platform': Platform.isAndroid ? 'android' : 'ios',
+      });
+    } catch (e) {
+      debugPrint('[로그] error_logs 저장 실패: $e');
+    }
+  }
+
+  // ────────────────────────────────────────────────────────
+  // 초기화
+  // ────────────────────────────────────────────────────────
 
   Future<void> init() async {
     if (kIsWeb) return;
@@ -68,7 +132,10 @@ class NotificationService {
     }
   }
 
-  /// POST_NOTIFICATIONS 권한만 요청 (알람 권한은 별도 처리)
+  // ────────────────────────────────────────────────────────
+  // 권한
+  // ────────────────────────────────────────────────────────
+
   Future<bool> requestNotificationPermission() async {
     if (kIsWeb) return true;
     if (Platform.isAndroid) {
@@ -99,6 +166,18 @@ class NotificationService {
     await _androidPlugin?.requestExactAlarmsPermission();
   }
 
+  /// 현재 예약된 알람 수 조회 (0이면 재등록 필요)
+  Future<int> getPendingCount() async {
+    if (kIsWeb) return 1; // 웹에서는 항상 '있음'으로 처리
+    final pendingList = await flutterLocalNotificationsPlugin.pendingNotificationRequests();
+    debugPrint('[알림] 현재 예약된 알람 수: ${pendingList.length}');
+    return pendingList.length;
+  }
+
+  // ────────────────────────────────────────────────────────
+  // 알람 예약
+  // ────────────────────────────────────────────────────────
+
   /// 알람 전체 재등록
   Future<void> rescheduleAlarms({
     required int startHour,
@@ -122,27 +201,70 @@ class NotificationService {
 
     // 정밀 알람 권한 확인
     final bool canExact = await canScheduleExactAlarms();
+
+    // Android 12+: SCHEDULE_EXACT_ALARM + USE_EXACT_ALARM 중 하나 필요
+    // 권한 없으면 inexact 로 폴백 (몇 분 지연 가능)
     final AndroidScheduleMode mode = canExact
         ? AndroidScheduleMode.exactAllowWhileIdle
         : AndroidScheduleMode.inexactAllowWhileIdle;
 
     debugPrint('[알림] 스케줄 모드: ${canExact ? "exact" : "inexact (권한 없음)"}');
+    debugPrint('[알림] 알람 범위: $startHour시 ~ $endHour시, ${intervalMinutes}분 간격');
 
-    for (int h = startHour; h < endHour; h++) {
-      await _scheduleDaily(id++, h, 0, now, mode);
+    // 자정 초과 여부 확인 (기상시간 > 취침시간인 경우)
+    bool isOvernight = endHour < startHour;
+    
+    if (isOvernight) {
+      // 기상시간부터 자정까지
+      for (int h = startHour; h < 24; h++) {
+        await _scheduleDaily(id++, h, 0, now, mode);
+        scheduledCount++;
+        if (intervalMinutes == 30) {
+          await _scheduleDaily(id++, h, 30, now, mode);
+          scheduledCount++;
+        }
+      }
+      // 자정부터 취침시간까지
+      for (int h = 0; h < endHour; h++) {
+        await _scheduleDaily(id++, h, 0, now, mode);
+        scheduledCount++;
+        if (intervalMinutes == 30) {
+          await _scheduleDaily(id++, h, 30, now, mode);
+          scheduledCount++;
+        }
+      }
+      // 취침시간 정각
+      await _scheduleDaily(id++, endHour, 0, now, mode);
       scheduledCount++;
-      if (intervalMinutes == 30) {
-        await _scheduleDaily(id++, h, 30, now, mode);
+    } else {
+      for (int h = startHour; h < endHour; h++) {
+        await _scheduleDaily(id++, h, 0, now, mode);
+        scheduledCount++;
+        if (intervalMinutes == 30) {
+          await _scheduleDaily(id++, h, 30, now, mode);
+          scheduledCount++;
+        }
+      }
+      // endHour 정각 알람 (24시 이상은 스킵)
+      if (endHour < 24) {
+        await _scheduleDaily(id++, endHour, 0, now, mode);
         scheduledCount++;
       }
     }
-    // endHour 정각 알람 (24시 이상은 스킵)
-    if (endHour < 24) {
-      await _scheduleDaily(id++, endHour, 0, now, mode);
-      scheduledCount++;
-    }
 
-    debugPrint('[알림] 총 $scheduledCount개 알람 예약 완료 ($startHour시~$endHour시, $intervalMinutes분 간격)');
+    debugPrint('[알림] 총 $scheduledCount개 알람 예약 완료 ($startHour시~$endHour시, ${intervalMinutes}분 간격)');
+    
+    await logAlarmEvent(
+      event: 'rescheduled',
+      extra: {
+        'count': scheduledCount,
+        'startHour': startHour,
+        'endHour': endHour,
+        'intervalMinutes': intervalMinutes,
+        'mode': canExact ? 'exact' : 'inexact',
+        'isOvernight': isOvernight,
+      },
+    );
   }
 
   Future<void> _scheduleDaily(
@@ -168,6 +290,8 @@ class NotificationService {
       enableVibration: true,
       playSound: true,
       visibility: NotificationVisibility.public,
+      // Android 14+: fullScreenIntent 없이도 잠금화면 표시
+      fullScreenIntent: false,
     );
 
     final NotificationDetails platformDetails = NotificationDetails(
@@ -190,8 +314,22 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
       );
       debugPrint('[알림] 예약 성공 id=$id → $scheduledDate ($timeStr)');
-    } catch (e) {
+      await logAlarmEvent(
+        event: 'scheduled',
+        extra: {'id': id, 'hour': h, 'minute': m, 'scheduledAt': scheduledDate.toIso8601String()},
+      );
+    } catch (e, st) {
       debugPrint('[알림] 알람 예약 실패 id=$id: $e');
+      await logAlarmEvent(
+        event: 'error',
+        errorMessage: e.toString(),
+        extra: {'id': id, 'hour': h, 'minute': m},
+      );
+      await logError(
+        location: 'notification_service._scheduleDaily(h=$h,m=$m)',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 }

@@ -1,6 +1,6 @@
 name: joongshim_uji_app
 description: 중심 유지 App - 에너지 감각 기록 및 퍼센트 분석 앱
-version: 1.2.3+9
+version: 1.2.5+13
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -16,6 +16,7 @@ dependencies:
   firebase_core: ^4.5.0
   firebase_messaging: ^16.1.2
   firebase_auth: ^6.2.0
+  firebase_crashlytics: ^5.0.8
   google_sign_in: ^7.2.0
   share_plus: ^12.0.1
   shared_preferences: ^2.5.4

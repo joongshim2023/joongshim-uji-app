@@ -128,24 +128,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showHourPicker(String title, int currentValue, int min, int max, Function(int) onSelected) {
+  void _showHourPicker(String title, int currentValue, int min, int max, Function(int) onSelected, {bool isEndHour = false}) {
     showDialog(
       context: context,
       builder: (_) {
         int tempVal = currentValue;
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            bool isOvernight = isEndHour && tempVal < _startHour;
             return AlertDialog(
               backgroundColor: AppTheme.bgCard,
               title: Text(title, style: const TextStyle(color: AppTheme.textWhite)),
-              content: DropdownButton<int>(
-                value: tempVal,
-                dropdownColor: AppTheme.timelineBg,
-                style: const TextStyle(color: AppTheme.activeGreen),
-                items: List.generate(max - min + 1, (i) => i + min).map((h) => DropdownMenuItem(value: h, child: Text('$h시'))).toList(),
-                onChanged: (val) {
-                  if (val != null) setDialogState(() => tempVal = val);
-                },
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButton<int>(
+                    value: tempVal,
+                    dropdownColor: AppTheme.timelineBg,
+                    style: const TextStyle(color: AppTheme.activeGreen),
+                    items: List.generate(max - min + 1, (i) => i + min).map((h) {
+                      bool overnight = isEndHour && h < _startHour;
+                      return DropdownMenuItem(
+                        value: h,
+                        child: Text(overnight ? '$h시 (다음날)' : '$h시'),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() {
+                        tempVal = val;
+                        isOvernight = isEndHour && val < _startHour;
+                      });
+                    },
+                  ),
+                  if (isOvernight)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.softIndigo.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, size: 14, color: AppTheme.softIndigo),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '기상 $_startHour시 ~ 다음날 새벽 ${tempVal}시까지 활동 시간으로 설정됩니다.',
+                                style: const TextStyle(color: AppTheme.softIndigo, fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: AppTheme.textGray))),
@@ -401,11 +439,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildListTile(
                   icon: Icons.nightlight_round, 
                   title: "기본 취침 시간", 
-                  trailingText: "$_endHour:00",
-                  onTap: () => _showHourPicker("취침 시간 (기본값)", _endHour, _startHour + 1, 24, (val) {
+                  trailingText: _endHour < _startHour ? '$_endHour:00 (다음날)' : '$_endHour:00',
+                  onTap: () => _showHourPicker("취침 시간 (기본값)", _endHour, 0, 24, (val) {
                     setState(() => _endHour = val);
                     _updateSetting('endHour', val);
-                  }),
+                  }, isEndHour: true),
                 ),
                 // TODO: 시계형 복원 시 아래 항목 주석 해제
                 // _buildListTile(

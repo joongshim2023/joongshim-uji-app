@@ -8,6 +8,7 @@ class TimelineRow extends StatelessWidget {
   final bool isCurrent;
   final int currentMinute;
   final bool isActiveWindow;
+  final bool isNextDay;
   final VoidCallback onTap;
 
   const TimelineRow({
@@ -18,14 +19,9 @@ class TimelineRow extends StatelessWidget {
     required this.isCurrent,
     required this.currentMinute,
     required this.isActiveWindow,
+    this.isNextDay = false,
     required this.onTap,
   }) : super(key: key);
-
-  String _formatHour(int h) {
-    int h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    String ampm = h < 12 ? "AM" : "PM";
-    return "${h12.toString().padLeft(2, ' ')} $ampm";
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +42,7 @@ class TimelineRow extends StatelessWidget {
                   : hasData 
                       ? AppTheme.mutedTeal.withOpacity(0.05)
                       : isActiveWindow
-                          ? AppTheme.textGray.withOpacity(0.03) // 활동 시간인데 미기록인 경우 아주 미세한 배경 추가
+                          ? AppTheme.textGray.withOpacity(0.03)
                           : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
@@ -59,11 +55,11 @@ class TimelineRow extends StatelessWidget {
         ),
         child: Opacity(
           opacity: isActiveWindow ? 1.0 : 0.4,
-          child:          Row(
+          child: Row(
             children: [
               // 시간 라벨 (AM/PM 작게 처리)
               SizedBox(
-                width: 34,
+                width: 44,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -82,14 +78,37 @@ class TimelineRow extends StatelessWidget {
                                 : (isActiveWindow ? AppTheme.textWhite.withOpacity(0.9) : AppTheme.textGray),
                       ),
                     ),
-                    Text(
-                      hour < 12 ? "AM" : "PM",
-                      style: TextStyle(
-                        fontSize: 8,
-                        height: 1.0,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? AppTheme.mutedTeal.withOpacity(0.8) : AppTheme.textGray,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          hour < 12 ? "AM" : "PM",
+                          style: TextStyle(
+                            fontSize: 8,
+                            height: 1.0,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? AppTheme.mutedTeal.withOpacity(0.8) : AppTheme.textGray,
+                          ),
+                        ),
+                        if (isNextDay) ...[
+                          const SizedBox(width: 2),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 0),
+                            decoration: BoxDecoration(
+                              color: AppTheme.softIndigo.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: const Text(
+                              '+1',
+                              style: TextStyle(
+                                fontSize: 7,
+                                color: AppTheme.softIndigo,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
