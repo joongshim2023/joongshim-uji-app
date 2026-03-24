@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
+import 'privacy_policy_screen.dart';
 import '../theme/app_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/auth_service.dart';
@@ -266,9 +269,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? email = _auth.currentUser?.email;
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.bgCard,
-        title: const Text('프로필 계정 연동', style: TextStyle(color: AppTheme.textWhite)),
+        title: const Text('프로필', style: TextStyle(color: AppTheme.textWhite)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,21 +288,213 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (email != null) {
                     try {
                       await _auth.sendPasswordReset(email);
-                      Navigator.pop(context);
+                      Navigator.pop(dialogContext);
                       _showInfoDialog('이메일 발송 완료', '비밀번호 변경 링크가 $email 으로 발송되었습니다.\n메일함을 확인해주세요.');
                     } catch (e) {
-                      Navigator.pop(context);
+                      Navigator.pop(dialogContext);
                       _showErrorDialog('발송 실패', '오류가 발생했습니다.\n$e');
                     }
                   }
                 },
                 child: const Text('이메일로 비밀번호 재설정 링크 받기', style: TextStyle(color: AppTheme.deepNavy, fontWeight: FontWeight.bold)),
               ),
-            )
+            ),
+            const SizedBox(height: 24),
+            const Divider(color: AppTheme.textGray, height: 1),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(dialogContext);
+                _showDeleteAccountDialog();
+              },
+              child: const Text(
+                '계정 삭제',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Colors.redAccent,
+                ),
+              ),
+            ),
           ]
         ),
       )
     );
+  }
+
+  /// 계정 삭제 플로우:
+  /// 1단계: 경고 + "계정 삭제" 확인 다이얼로그
+  /// 2단계: 이메일/비밀번호 사용자는 비밀번호 재입력, 소셜 로그인 사용자는 재인증 안내
+  /// 3단계: 실제 삭제 실행
+  Future<void> _showDeleteAccountDialog() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // 제공자 판별 (email, google.com, apple.com)
+    final providers = user.providerData.map((p) => p.providerId).toList();
+    final isEmailUser = providers.contains('password');
+
+    // 1단계: 확인 다이얼로그
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+            SizedBox(width: 8),
+            Text('계정 삭제', style: TextStyle(color: Colors.redAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          '계정을 삭제하면 모든 기록 데이터(daily_logs, 알람 기록, 설정)가 영구적으로 삭제됩니다.\n\n이 작업은 되돌릴 수 없습니다.',
+          style: TextStyle(color: AppTheme.textGray, fontSize: 14, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: AppTheme.textGray)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제 진행', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // 2단계: 사용자 유형별 재인증
+    if (isEmailUser) {
+      // 이메일 사용자 → 비밀번호 재입력
+      final pwdCtrl = TextEditingController();
+      bool obscure = true;
+      final reauthConfirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => StatefulBuilder(
+          builder: (ctx, setS) => AlertDialog(
+            backgroundColor: AppTheme.bgCard,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('비밀번호 확인', style: TextStyle(color: AppTheme.textWhite)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('계정 삭제를 위해 현재 비밀번호를 입력해주세요.', style: TextStyle(color: AppTheme.textGray, fontSize: 14)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: pwdCtrl,
+                  obscureText: obscure,
+                  autofocus: true,
+                  style: const TextStyle(color: AppTheme.textWhite),
+                  decoration: InputDecoration(
+                    hintText: '비밀번호',
+                    hintStyle: const TextStyle(color: AppTheme.textGray),
+                    filled: true,
+                    fillColor: AppTheme.deepNavy,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, color: AppTheme.textGray, size: 18),
+                      onPressed: () => setS(() => obscure = !obscure),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('취소', style: TextStyle(color: AppTheme.textGray)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('확인', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (reauthConfirmed != true || !mounted) return;
+
+      try {
+        final email = user.email!;
+        await _auth.reauthenticateWithPassword(email, pwdCtrl.text.trim());
+      } catch (e) {
+        if (mounted) _showErrorDialog('인증 실패', '비밀번호가 올바르지 않습니다.\n다시 확인해주세요.');
+        return;
+      }
+    } else {
+      // 소셜 로그인 사용자 → 해당 provider로 재인증
+      final isGoogleUser = providers.contains('google.com');
+      final isAppleUser = providers.contains('apple.com');
+
+      // 재인증 안내 다이얼로그
+      final reauthConfirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppTheme.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            isGoogleUser ? 'Google 계정 재인증' : 'Apple 계정 재인증',
+            style: const TextStyle(color: AppTheme.textWhite),
+          ),
+          content: Text(
+            isGoogleUser
+                ? '계정 삭제를 위해 Google 계정으로 다시 인증해야 합니다.\n계속하시겠습니까?'
+                : '계정 삭제를 위해 Apple 계정으로 다시 인증해야 합니다.\n계속하시겠습니까?',
+            style: const TextStyle(color: AppTheme.textGray, fontSize: 14, height: 1.6),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소', style: TextStyle(color: AppTheme.textGray)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('인증 진행', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+      if (reauthConfirmed != true || !mounted) return;
+
+      try {
+        if (isGoogleUser) {
+          await _auth.reauthenticateWithGoogle();
+        } else if (isAppleUser) {
+          await _auth.reauthenticateWithApple();
+        }
+      } catch (e) {
+        final msg = e.toString();
+        if (mounted) {
+          if (msg.contains('canceled') || msg.contains('cancelled') || msg.contains('1001')) {
+            return; // 사용자가 취소한 경우
+          }
+          _showErrorDialog('재인증 실패', '인증 중 오류가 발생했습니다.\n다시 시도해주세요.');
+        }
+        return;
+      }
+    }
+
+    // 3단계: 실제 삭제
+    if (!mounted) return;
+    setState(() {});
+    try {
+      await _auth.deleteAccount();
+      // signOut 후 authStateChanges가 null을 emit하여 자동으로 로그인 화면으로 이동
+    } catch (e) {
+      final msg = e.toString();
+      if (mounted) {
+        if (msg.contains('requires-recent-login')) {
+          _showErrorDialog('재로그인 필요', '보안을 위해 앱을 재시작하여 다시 로그인 후 계정 삭제를 시도해주세요.');
+        } else {
+          _showErrorDialog('삭제 실패', '오류가 발생했습니다.\n$msg');
+        }
+      }
+    }
   }
 
   Future<void> _exportTXT(DateTime start, DateTime end) async {
@@ -518,6 +713,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSectionHeader("계정 및 데이터"),
                 _buildListTile(icon: Icons.person_outline, title: "프로필", onTap: _showProfile),
                 _buildListTile(icon: Icons.text_snippet_outlined, title: "기록 내보내기 (TXT)", onTap: _showExportPopup),
+                _buildListTile(
+                  icon: Icons.policy_outlined,
+                  title: "개인정보처리방침",
+                  onTap: () async {
+                    if (kIsWeb) {
+                      // 웹에서는 새 탭으로 열기 (WebView 미지원)
+                      final uri = Uri.parse('https://jh-pages.notion.site/App-328baf99869180429bedd807255a6145');
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    } else {
+                      // 모바일: 앱 내 WebView 화면으로 이동
+                      if (mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                        );
+                      }
+                    }
+                  },
+                ),
                 const SizedBox(height: 16),
                 _buildSectionHeader("계정 관리"),
                 ListTile(

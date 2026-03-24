@@ -554,6 +554,24 @@
       "languageVersion": "3.3"
     },
     {
+      "name": "sign_in_with_apple",
+      "rootUri": "file:///Users/jahyun/.pub-cache/hosted/pub.dev/sign_in_with_apple-6.1.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "sign_in_with_apple_platform_interface",
+      "rootUri": "file:///Users/jahyun/.pub-cache/hosted/pub.dev/sign_in_with_apple_platform_interface-1.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "sign_in_with_apple_web",
+      "rootUri": "file:///Users/jahyun/.pub-cache/hosted/pub.dev/sign_in_with_apple_web-2.1.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
       "name": "sky_engine",
       "rootUri": "file:///Users/jahyun/developer/flutter/bin/cache/pkg/sky_engine",
       "packageUri": "lib/",
@@ -678,6 +696,30 @@
       "rootUri": "file:///Users/jahyun/.pub-cache/hosted/pub.dev/web-1.1.1",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "webview_flutter",
+      "rootUri": "file:///Users/jahyun/.pub-cache/hosted/pub.dev/webview_flutter-4.13.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
+      "name": "webview_flutter_android",
+      "rootUri": "file:///Users/jahyun/.pub-cache/hosted/pub.dev/webview_flutter_android-4.10.13",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "webview_flutter_platform_interface",
+      "rootUri": "file:///Users/jahyun/.pub-cache/hosted/pub.dev/webview_flutter_platform_interface-2.14.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
+      "name": "webview_flutter_wkwebview",
+      "rootUri": "file:///Users/jahyun/.pub-cache/hosted/pub.dev/webview_flutter_wkwebview-3.24.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
     },
     {
       "name": "win32",

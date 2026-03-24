@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "joongshim_uji_app",
-      "version": "1.2.5+13",
+      "version": "1.2.6+14",
       "dependencies": [
         "cloud_firestore",
         "cupertino_icons",
@@ -23,8 +23,10 @@
         "provider",
         "share_plus",
         "shared_preferences",
+        "sign_in_with_apple",
         "timezone",
-        "url_launcher"
+        "url_launcher",
+        "webview_flutter"
       ],
       "devDependencies": [
         "flutter_launcher_icons",
@@ -68,6 +70,16 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "webview_flutter",
+      "version": "4.13.1",
+      "dependencies": [
+        "flutter",
+        "webview_flutter_android",
+        "webview_flutter_platform_interface",
+        "webview_flutter_wkwebview"
       ]
     },
     {
@@ -161,6 +173,16 @@
         "url_launcher_windows",
         "web",
         "win32"
+      ]
+    },
+    {
+      "name": "sign_in_with_apple",
+      "version": "6.1.4",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "sign_in_with_apple_platform_interface",
+        "sign_in_with_apple_web"
       ]
     },
     {
@@ -410,6 +432,34 @@
         "stream_channel",
         "string_scanner",
         "term_glyph"
+      ]
+    },
+    {
+      "name": "webview_flutter_wkwebview",
+      "version": "3.24.1",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "path",
+        "webview_flutter_platform_interface"
+      ]
+    },
+    {
+      "name": "webview_flutter_platform_interface",
+      "version": "2.14.0",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "webview_flutter_android",
+      "version": "4.10.13",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "webview_flutter_platform_interface"
       ]
     },
     {
@@ -671,6 +721,24 @@
       "dependencies": [
         "meta",
         "web"
+      ]
+    },
+    {
+      "name": "sign_in_with_apple_web",
+      "version": "2.1.1",
+      "dependencies": [
+        "flutter",
+        "flutter_web_plugins",
+        "sign_in_with_apple_platform_interface"
+      ]
+    },
+    {
+      "name": "sign_in_with_apple_platform_interface",
+      "version": "1.1.0",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
       ]
     },
     {

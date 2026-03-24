@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
@@ -181,7 +183,6 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authService.signInWithGoogle();
     } catch (e) {
       final msg = e.toString();
-      // 사용자가 직접 취소한 경우 (계정 선택 창에서 뒤로가기) → 팝업 없이 무시
       if (msg.contains('sign_in_canceled') ||
           msg.contains('sign_in_cancelled') ||
           msg.contains('The user canceled the sign-in flow')) {
@@ -193,6 +194,23 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  Future<void> _appleLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      await _authService.signInWithApple();
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('canceled') || msg.contains('cancelled') || msg.contains('1001')) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      _showErrorDialog('Apple 로그인 실패', '오류가 발생했습니다.\n$e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
 
   Future<void> _forgotPassword() async {
     String email = _emailCtrl.text.trim();
@@ -323,6 +341,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+              // Apple Sign-In: iOS/macOS 에서만 표시
+              if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _appleLogin,
+                    icon: const Icon(Icons.apple, color: AppTheme.textWhite, size: 22),
+                    label: const Text('Apple 계정으로 로그인', style: TextStyle(color: AppTheme.textWhite)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.textGray),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

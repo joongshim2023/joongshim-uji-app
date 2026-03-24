@@ -84,6 +84,16 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
+		<key>FirebaseCrashlytics-FirebaseCrashlytics_Privacy.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>FirebaseCrashlytics.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
 		<key>FirebaseFirestore-FirebaseFirestore_Privacy.xcscheme</key>
 		<dict>
 			<key>isShown</key>
@@ -120,6 +130,16 @@
 			<false/>
 		</dict>
 		<key>FirebaseMessaging.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>FirebaseRemoteConfigInterop.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>FirebaseSessions.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
@@ -209,6 +229,16 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
+		<key>PromisesSwift-Promises_Privacy.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>PromisesSwift.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
 		<key>RecaptchaInterop.xcscheme</key>
 		<dict>
 			<key>isShown</key>
@@ -235,6 +265,11 @@
 			<false/>
 		</dict>
 		<key>firebase_core.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>firebase_crashlytics.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
@@ -344,12 +379,27 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
+		<key>sign_in_with_apple.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
 		<key>url_launcher_ios-url_launcher_ios_privacy.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
 		</dict>
 		<key>url_launcher_ios.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>webview_flutter_wkwebview-webview_flutter_wkwebview_privacy.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>webview_flutter_wkwebview.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
