@@ -20,7 +20,7 @@ class EnergyClockPicker extends StatefulWidget {
 
 class _EnergyClockPickerState extends State<EnergyClockPicker> {
   final List<int> _steps = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
-  
+
   int? _currentDragMinutes;
 
   int _snapToStep(int m) {
@@ -32,7 +32,7 @@ class _EnergyClockPickerState extends State<EnergyClockPicker> {
     final center = Offset(size.width / 2, size.height / 2);
     final dx = localPosition.dx - center.dx;
     final dy = localPosition.dy - center.dy;
-    
+
     // Check distance: only respond if touch is near the track rim (wider hit area)
     final distance = math.sqrt(dx * dx + dy * dy);
     final radius = size.width / 2 - 20;
@@ -40,7 +40,7 @@ class _EnergyClockPickerState extends State<EnergyClockPicker> {
       _currentDragMinutes = null;
       return;
     }
-    
+
     _updateDrag(dx, dy, true);
   }
 
@@ -135,7 +135,7 @@ class _ClockPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 24
         ..strokeCap = StrokeCap.round;
-        
+
       double sweepAngle = (minutes / 60) * 2 * math.pi;
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
@@ -160,13 +160,20 @@ class _ClockPainter extends CustomPainter {
       double innerR = isMajor ? radius - 10 : radius - 5;
       double outerR = radius + 12;
 
-      Offset p1 = Offset(center.dx + innerR * math.cos(angle), center.dy + innerR * math.sin(angle));
-      Offset p2 = Offset(center.dx + outerR * math.cos(angle), center.dy + outerR * math.sin(angle));
+      Offset p1 = Offset(center.dx + innerR * math.cos(angle),
+          center.dy + innerR * math.sin(angle));
+      Offset p2 = Offset(center.dx + outerR * math.cos(angle),
+          center.dy + outerR * math.sin(angle));
       canvas.drawLine(p1, p2, isMajor ? majorTickPaint : tickPaint);
 
       if (isMajor && i < 60) {
-        TextSpan span = TextSpan(style: const TextStyle(color: AppTheme.textGray, fontSize: 10), text: '$i');
-        TextPainter tp = TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
+        TextSpan span = TextSpan(
+            style: const TextStyle(color: AppTheme.textGray, fontSize: 10),
+            text: '$i');
+        TextPainter tp = TextPainter(
+            text: span,
+            textAlign: TextAlign.center,
+            textDirection: TextDirection.ltr);
         tp.layout();
         double lx = center.dx + (outerR + 10) * math.cos(angle) - tp.width / 2;
         double ly = center.dy + (outerR + 10) * math.sin(angle) - tp.height / 2;
@@ -176,26 +183,39 @@ class _ClockPainter extends CustomPainter {
 
     int pct = ((minutes / 60) * 100).round();
     TextSpan pctSpan = TextSpan(
-      style: TextStyle(color: isActive ? AppTheme.activeGreen : AppTheme.textGray, fontSize: 32, fontWeight: FontWeight.bold),
+      style: TextStyle(
+          color: isActive ? AppTheme.activeGreen : AppTheme.textGray,
+          fontSize: 32,
+          fontWeight: FontWeight.bold),
       text: '$pct%',
     );
-    TextPainter tpPct = TextPainter(text: pctSpan, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
+    TextPainter tpPct = TextPainter(
+        text: pctSpan,
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr);
     tpPct.layout();
 
     TextSpan minSpan = TextSpan(
-      style: TextStyle(color: isActive ? AppTheme.textWhite : AppTheme.textGray, fontSize: 16, fontWeight: FontWeight.bold),
+      style: TextStyle(
+          color: isActive ? AppTheme.textWhite : AppTheme.textGray,
+          fontSize: 16,
+          fontWeight: FontWeight.bold),
       text: '$minutes분',
     );
-    TextPainter tpMin = TextPainter(text: minSpan, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
+    TextPainter tpMin = TextPainter(
+        text: minSpan,
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr);
     tpMin.layout();
 
     // 두 개의 줄간격은 '45분' 글자 높이만큼 간격을 둔다.
     double gap = tpMin.height;
     double totalHeight = tpPct.height + gap + tpMin.height;
-    
+
     double startY = center.dy - totalHeight / 2;
     tpPct.paint(canvas, Offset(center.dx - tpPct.width / 2, startY));
-    tpMin.paint(canvas, Offset(center.dx - tpMin.width / 2, startY + tpPct.height + gap));
+    tpMin.paint(canvas,
+        Offset(center.dx - tpMin.width / 2, startY + tpPct.height + gap));
   }
 
   @override

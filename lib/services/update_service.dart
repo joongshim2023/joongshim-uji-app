@@ -18,7 +18,7 @@ class UpdateService {
 
     try {
       final info = await PackageInfo.fromPlatform();
-      final currentVersion = info.version;         // e.g. "1.2.2"
+      final currentVersion = info.version; // e.g. "1.2.2"
       final currentBuild = int.tryParse(info.buildNumber) ?? 0; // e.g. 8
 
       final doc = await FirebaseFirestore.instance.doc(_docPath).get();
@@ -29,14 +29,19 @@ class UpdateService {
 
       final data = doc.data()!;
       final String latestVersion = data['latestVersion'] ?? currentVersion;
-      final int latestBuild = (data['latestBuildNumber'] ?? currentBuild) as int;
+      final int latestBuild =
+          (data['latestBuildNumber'] ?? currentBuild) as int;
       final String minVersion = data['minVersion'] ?? '1.0.0';
       final bool forceUpdate = data['forceUpdate'] ?? false;
-      final String message = data['message'] ?? '새로운 버전이 출시되었습니다! 업데이트 후 더 좋은 경험을 누려보세요.';
-      final String androidUrl = data['androidStoreUrl'] ?? 'market://details?id=com.uji.joongshim';
-      final String iosUrl = data['iosStoreUrl'] ?? 'https://apps.apple.com/app/id6744050393';
+      final String message =
+          data['message'] ?? '새로운 버전이 출시되었습니다! 업데이트 후 더 좋은 경험을 누려보세요.';
+      final String androidUrl =
+          data['androidStoreUrl'] ?? 'market://details?id=com.uji.joongshim';
+      final String iosUrl =
+          data['iosStoreUrl'] ?? 'https://apps.apple.com/app/id6744050393';
 
-      debugPrint('[업데이트] 현재=$currentVersion+$currentBuild, 최신=$latestVersion+$latestBuild, min=$minVersion, force=$forceUpdate');
+      debugPrint(
+          '[업데이트] 현재=$currentVersion+$currentBuild, 최신=$latestVersion+$latestBuild, min=$minVersion, force=$forceUpdate');
 
       // 강제 업데이트: 현재 버전이 최소 버전보다 낮을 때
       if (_compareVersions(currentVersion, minVersion) < 0) {
@@ -50,8 +55,10 @@ class UpdateService {
         );
       }
 
-      // 선택 업데이트: 최신 빌드보다 낮을 때
-      if (latestBuild > currentBuild) {
+      // 선택 업데이트: 최신 버전이 더 높거나, (버전이 같은데) 최신 빌드가 더 높을 때
+      int versionComparison = _compareVersions(latestVersion, currentVersion);
+      if (versionComparison > 0 ||
+          (versionComparison == 0 && latestBuild > currentBuild)) {
         return UpdateCheckResult(
           hasUpdate: true,
           forceUpdate: forceUpdate,

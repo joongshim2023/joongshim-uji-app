@@ -19,9 +19,8 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   AndroidFlutterLocalNotificationsPlugin? get _androidPlugin =>
-      flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+      flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
 
   // ────────────────────────────────────────────────────────
   // Firestore 로그 헬퍼
@@ -101,7 +100,8 @@ class NotificationService {
       requestSoundPermission: true,
     );
 
-    const InitializationSettings initializationSettings = InitializationSettings(
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
@@ -127,7 +127,8 @@ class NotificationService {
       );
 
       // POST_NOTIFICATIONS 권한 요청 (Android 13+)
-      final notifGranted = await _androidPlugin?.requestNotificationsPermission();
+      final notifGranted =
+          await _androidPlugin?.requestNotificationsPermission();
       debugPrint('[알림] 알림 권한=$notifGranted');
     }
   }
@@ -142,8 +143,8 @@ class NotificationService {
       final granted = await _androidPlugin?.requestNotificationsPermission();
       return granted ?? true;
     } else if (Platform.isIOS) {
-      final iosImpl = flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
+      final iosImpl =
+          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
               IOSFlutterLocalNotificationsPlugin>();
       final granted = await iosImpl?.requestPermissions(
           alert: true, badge: true, sound: true);
@@ -169,7 +170,8 @@ class NotificationService {
   /// 현재 예약된 알람 수 조회 (0이면 재등록 필요)
   Future<int> getPendingCount() async {
     if (kIsWeb) return 1; // 웹에서는 항상 '있음'으로 처리
-    final pendingList = await flutterLocalNotificationsPlugin.pendingNotificationRequests();
+    final pendingList =
+        await flutterLocalNotificationsPlugin.pendingNotificationRequests();
     debugPrint('[알림] 현재 예약된 알람 수: ${pendingList.length}');
     return pendingList.length;
   }
@@ -213,7 +215,7 @@ class NotificationService {
 
     // 자정 초과 여부 확인 (기상시간 > 취침시간인 경우)
     bool isOvernight = endHour < startHour;
-    
+
     if (isOvernight) {
       // 기상시간부터 자정까지
       for (int h = startHour; h < 24; h++) {
@@ -252,8 +254,9 @@ class NotificationService {
       }
     }
 
-    debugPrint('[알림] 총 $scheduledCount개 알람 예약 완료 ($startHour시~$endHour시, ${intervalMinutes}분 간격)');
-    
+    debugPrint(
+        '[알림] 총 $scheduledCount개 알람 예약 완료 ($startHour시~$endHour시, ${intervalMinutes}분 간격)');
+
     await logAlarmEvent(
       event: 'rescheduled',
       extra: {
@@ -280,7 +283,8 @@ class NotificationService {
     final String minStr = m == 0 ? '정각' : '$m분';
     final String timeStr = '$amPm $hour12시 $minStr';
 
-    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
       _channelId,
       _channelName,
       channelDescription: _channelDesc,
@@ -316,7 +320,12 @@ class NotificationService {
       debugPrint('[알림] 예약 성공 id=$id → $scheduledDate ($timeStr)');
       await logAlarmEvent(
         event: 'scheduled',
-        extra: {'id': id, 'hour': h, 'minute': m, 'scheduledAt': scheduledDate.toIso8601String()},
+        extra: {
+          'id': id,
+          'hour': h,
+          'minute': m,
+          'scheduledAt': scheduledDate.toIso8601String()
+        },
       );
     } catch (e, st) {
       debugPrint('[알림] 알람 예약 실패 id=$id: $e');

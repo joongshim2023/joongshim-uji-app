@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
+import 'package:in_app_update/in_app_update.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -33,9 +35,10 @@ void main() async {
 
   try {
     await NotificationService().init();
-  } catch(e) {
+  } catch (e) {
     if (!kIsWeb) {
-      await FirebaseCrashlytics.instance.recordError(e, null, reason: 'NotificationService init failure', fatal: false);
+      await FirebaseCrashlytics.instance.recordError(e, null,
+          reason: 'NotificationService init failure', fatal: false);
     }
     debugPrint('Notification Engine Error: $e');
   }
@@ -43,12 +46,12 @@ void main() async {
   // google_sign_in 7.x: Android/iOS에서만 초기화 (웹에서는 불필요)
   if (!kIsWeb) {
     await GoogleSignIn.instance.initialize(
-      serverClientId: '880648187658-bfejjnap1bn8rq8usu7e5l2td7g1g9mc.apps.googleusercontent.com',
+      serverClientId:
+          '880648187658-bfejjnap1bn8rq8usu7e5l2td7g1g9mc.apps.googleusercontent.com',
     );
   }
   runApp(const JoongshimUjiApp());
 }
-
 
 class JoongshimUjiApp extends StatelessWidget {
   const JoongshimUjiApp({Key? key}) : super(key: key);
@@ -62,7 +65,8 @@ class JoongshimUjiApp extends StatelessWidget {
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            return const Scaffold(
+                body: Center(child: CircularProgressIndicator()));
           }
           if (snapshot.hasData && snapshot.data != null) {
             return const MainNavigator();
@@ -100,6 +104,19 @@ class _MainNavigatorState extends State<MainNavigator> {
   }
 
   Future<void> _checkForUpdate() async {
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        final updateInfo = await InAppUpdate.checkForUpdate();
+        if (updateInfo.updateAvailability ==
+            UpdateAvailability.updateAvailable) {
+          await InAppUpdate.performImmediateUpdate();
+          return;
+        }
+      } catch (e) {
+        debugPrint('InAppUpdate Error: $e');
+      }
+    }
+
     final result = await UpdateService().checkForUpdate();
     if (!result.hasUpdate || !mounted) return;
 
@@ -111,7 +128,8 @@ class _MainNavigatorState extends State<MainNavigator> {
         canPop: !result.forceUpdate,
         child: AlertDialog(
           backgroundColor: const Color(0xFF1A2035),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
               Container(
@@ -120,7 +138,8 @@ class _MainNavigatorState extends State<MainNavigator> {
                   color: const Color(0xFF4ECDC4).withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.system_update_outlined, color: Color(0xFF4ECDC4), size: 24),
+                child: const Icon(Icons.system_update_outlined,
+                    color: Color(0xFF4ECDC4), size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -129,11 +148,15 @@ class _MainNavigatorState extends State<MainNavigator> {
                   children: [
                     Text(
                       result.forceUpdate ? '업데이트 필요' : '새 버전 출시!',
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
                     ),
                     Text(
                       'v${result.latestVersion}',
-                      style: const TextStyle(color: Color(0xFF4ECDC4), fontSize: 13),
+                      style: const TextStyle(
+                          color: Color(0xFF4ECDC4), fontSize: 13),
                     ),
                   ],
                 ),
@@ -142,13 +165,15 @@ class _MainNavigatorState extends State<MainNavigator> {
           ),
           content: Text(
             result.message ?? '새로운 버전이 출시되었습니다. 업데이트 후 더 좋은 경험을 누려보세요.',
-            style: const TextStyle(color: Color(0xFF9AA3B2), fontSize: 14, height: 1.6),
+            style: const TextStyle(
+                color: Color(0xFF9AA3B2), fontSize: 14, height: 1.6),
           ),
           actions: [
             if (!result.forceUpdate)
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('나중에', style: TextStyle(color: Color(0xFF9AA3B2))),
+                child: const Text('나중에',
+                    style: TextStyle(color: Color(0xFF9AA3B2))),
               ),
             TextButton(
               onPressed: () async {
@@ -158,14 +183,16 @@ class _MainNavigatorState extends State<MainNavigator> {
                 }
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFF4ECDC4),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text(
                   '업데이트',
-                  style: TextStyle(color: Color(0xFF0D1421), fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Color(0xFF0D1421), fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -183,9 +210,18 @@ class _MainNavigatorState extends State<MainNavigator> {
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.insights_outlined), activeIcon: Icon(Icons.insights), label: '통계'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: '설정'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: '홈'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.insights_outlined),
+              activeIcon: Icon(Icons.insights),
+              label: '통계'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: '설정'),
         ],
       ),
     );

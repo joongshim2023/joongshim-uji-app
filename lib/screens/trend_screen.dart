@@ -15,8 +15,9 @@ class TrendScreen extends StatefulWidget {
 
 class _TrendScreenState extends State<TrendScreen> {
   int _viewMode = 0;
-  
-  DateTime _currentMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+
+  DateTime _currentMonth =
+      DateTime(DateTime.now().year, DateTime.now().month, 1);
   late DateTime _currentWeekStart;
 
   final AuthService _auth = AuthService();
@@ -27,12 +28,14 @@ class _TrendScreenState extends State<TrendScreen> {
     super.initState();
     DateTime now = DateTime.now();
     int daysFromMonday = now.weekday - 1;
-    _currentWeekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: daysFromMonday));
+    _currentWeekStart = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: daysFromMonday));
   }
 
   void _changeMonth(int delta) {
     setState(() {
-      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + delta, 1);
+      _currentMonth =
+          DateTime(_currentMonth.year, _currentMonth.month + delta, 1);
     });
   }
 
@@ -46,11 +49,16 @@ class _TrendScreenState extends State<TrendScreen> {
   Widget build(BuildContext context) {
     String? uid = _auth.currentUser?.uid;
     if (uid == null) {
-      return const Center(child: Text("로그인이 필요합니다.", style: TextStyle(color: Colors.white)));
+      return const Center(
+          child: Text("로그인이 필요합니다.", style: TextStyle(color: Colors.white)));
     }
 
-    DateTime start = _viewMode == 0 ? DateTime(_currentMonth.year, _currentMonth.month, 1) : _currentWeekStart;
-    DateTime end = _viewMode == 0 ? DateTime(_currentMonth.year, _currentMonth.month + 1, 0) : _currentWeekStart.add(const Duration(days: 6));
+    DateTime start = _viewMode == 0
+        ? DateTime(_currentMonth.year, _currentMonth.month, 1)
+        : _currentWeekStart;
+    DateTime end = _viewMode == 0
+        ? DateTime(_currentMonth.year, _currentMonth.month + 1, 0)
+        : _currentWeekStart.add(const Duration(days: 6));
 
     return SafeArea(
       child: Column(
@@ -61,10 +69,11 @@ class _TrendScreenState extends State<TrendScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "에너지감각 유지 통계 분석", 
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textWhite)
-                ),
+                const Text("에너지감각 유지 통계 분석",
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textWhite)),
                 const SizedBox(height: 8),
                 const Text(
                   "기간별 에너지감각 유지 비중 추이를 확인하세요.",
@@ -84,10 +93,13 @@ class _TrendScreenState extends State<TrendScreen> {
                       selectedColor: AppTheme.deepNavy,
                       fillColor: AppTheme.mutedTeal,
                       borderRadius: BorderRadius.circular(20),
-                      constraints: const BoxConstraints(minWidth: 100, minHeight: 36),
+                      constraints:
+                          const BoxConstraints(minWidth: 100, minHeight: 36),
                       children: const [
-                        Text("캘린더", style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text("그래프", style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text("캘린더",
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text("그래프",
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -97,18 +109,20 @@ class _TrendScreenState extends State<TrendScreen> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _energy.getLogsStream(uid, start, end),
-              builder: (context, snapshot) {
-                Map<String, int> efficiencyMap = {};
-                if (snapshot.hasData) {
-                  for (var doc in snapshot.data!.docs) {
-                    var data = doc.data() as Map<String, dynamic>;
-                    efficiencyMap[data['date']] = (data['efficiencyPct'] ?? 0).toInt();
+                stream: _energy.getLogsStream(uid, start, end),
+                builder: (context, snapshot) {
+                  Map<String, int> efficiencyMap = {};
+                  if (snapshot.hasData) {
+                    for (var doc in snapshot.data!.docs) {
+                      var data = doc.data() as Map<String, dynamic>;
+                      efficiencyMap[data['date']] =
+                          (data['efficiencyPct'] ?? 0).toInt();
+                    }
                   }
-                }
-                return _viewMode == 0 ? _buildCalendarView(efficiencyMap) : _buildGraphView(efficiencyMap);
-              }
-            ),
+                  return _viewMode == 0
+                      ? _buildCalendarView(efficiencyMap)
+                      : _buildGraphView(efficiencyMap);
+                }),
           ),
         ],
       ),
@@ -116,8 +130,9 @@ class _TrendScreenState extends State<TrendScreen> {
   }
 
   Widget _buildCalendarView(Map<String, int> EFF_MAP) {
-    int daysInMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 0).day;
-    int firstWeekday = _currentMonth.weekday; 
+    int daysInMonth =
+        DateTime(_currentMonth.year, _currentMonth.month + 1, 0).day;
+    int firstWeekday = _currentMonth.weekday;
     int offset = firstWeekday == 7 ? 0 : firstWeekday;
 
     return Padding(
@@ -127,17 +142,29 @@ class _TrendScreenState extends State<TrendScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(icon: const Icon(Icons.chevron_left, color: AppTheme.textWhite), onPressed: () => _changeMonth(-1)),
-              Text(DateFormat('yyyy년 MM월').format(_currentMonth), style: const TextStyle(fontSize: 18, color: AppTheme.textWhite, fontWeight: FontWeight.bold)),
-              IconButton(icon: const Icon(Icons.chevron_right, color: AppTheme.textWhite), onPressed: () => _changeMonth(1)),
+              IconButton(
+                  icon:
+                      const Icon(Icons.chevron_left, color: AppTheme.textWhite),
+                  onPressed: () => _changeMonth(-1)),
+              Text(DateFormat('yyyy년 MM월').format(_currentMonth),
+                  style: const TextStyle(
+                      fontSize: 18,
+                      color: AppTheme.textWhite,
+                      fontWeight: FontWeight.bold)),
+              IconButton(
+                  icon: const Icon(Icons.chevron_right,
+                      color: AppTheme.textWhite),
+                  onPressed: () => _changeMonth(1)),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: ['일', '월', '화', '수', '목', '금', '토'].map((d) => 
-              Text(d, style: const TextStyle(color: AppTheme.textGray, fontSize: 12))
-            ).toList(),
+            children: ['일', '월', '화', '수', '목', '금', '토']
+                .map((d) => Text(d,
+                    style: const TextStyle(
+                        color: AppTheme.textGray, fontSize: 12)))
+                .toList(),
           ),
           const SizedBox(height: 8),
           Expanded(
@@ -154,25 +181,40 @@ class _TrendScreenState extends State<TrendScreen> {
                   return const SizedBox();
                 }
                 int day = index - offset + 1;
-                DateTime d = DateTime(_currentMonth.year, _currentMonth.month, day);
+                DateTime d =
+                    DateTime(_currentMonth.year, _currentMonth.month, day);
                 String dateKey = DateFormat('yyyy-MM-dd').format(d);
                 int? efficiency = EFF_MAP[dateKey];
-                bool isToday = DateFormat('yyyyMMdd').format(d) == DateFormat('yyyyMMdd').format(DateTime.now());
+                bool isToday = DateFormat('yyyyMMdd').format(d) ==
+                    DateFormat('yyyyMMdd').format(DateTime.now());
 
                 return Container(
                   decoration: BoxDecoration(
-                    color: efficiency != null ? AppTheme.mutedTeal.withOpacity(0.2) : AppTheme.bgCard,
+                    color: efficiency != null
+                        ? AppTheme.mutedTeal.withOpacity(0.2)
+                        : AppTheme.bgCard,
                     borderRadius: BorderRadius.circular(8),
-                    border: isToday ? Border.all(color: AppTheme.yellowAccent, width: 1.5) : null,
+                    border: isToday
+                        ? Border.all(color: AppTheme.yellowAccent, width: 1.5)
+                        : null,
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('$day', style: TextStyle(fontSize: 11, color: isToday ? AppTheme.yellowAccent : AppTheme.textWhite)),
+                      Text('$day',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: isToday
+                                  ? AppTheme.yellowAccent
+                                  : AppTheme.textWhite)),
                       if (efficiency != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4.0),
-                          child: Text('$efficiency%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.activeGreen)),
+                          child: Text('$efficiency%',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.activeGreen)),
                         ),
                     ],
                   ),
@@ -203,17 +245,27 @@ class _TrendScreenState extends State<TrendScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(icon: const Icon(Icons.chevron_left, color: AppTheme.textWhite), onPressed: () => _changeWeek(-1)),
+              IconButton(
+                  icon:
+                      const Icon(Icons.chevron_left, color: AppTheme.textWhite),
+                  onPressed: () => _changeWeek(-1)),
               Column(
                 children: [
-                   const Text("주간 동향", style: TextStyle(fontSize: 16, color: AppTheme.textWhite, fontWeight: FontWeight.bold)),
+                  const Text("주간 동향",
+                      style: TextStyle(
+                          fontSize: 16,
+                          color: AppTheme.textWhite,
+                          fontWeight: FontWeight.bold)),
                   Text(
-                    '${DateFormat('MM.dd').format(_currentWeekStart)} ~ ${DateFormat('MM.dd').format(_currentWeekStart.add(const Duration(days: 6)))}',
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textGray)
-                  ),
+                      '${DateFormat('MM.dd').format(_currentWeekStart)} ~ ${DateFormat('MM.dd').format(_currentWeekStart.add(const Duration(days: 6)))}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppTheme.textGray)),
                 ],
               ),
-              IconButton(icon: const Icon(Icons.chevron_right, color: AppTheme.textWhite), onPressed: () => _changeWeek(1)),
+              IconButton(
+                  icon: const Icon(Icons.chevron_right,
+                      color: AppTheme.textWhite),
+                  onPressed: () => _changeWeek(1)),
             ],
           ),
           const SizedBox(height: 16),
@@ -223,22 +275,28 @@ class _TrendScreenState extends State<TrendScreen> {
               child: LineChart(
                 LineChartData(
                   gridData: FlGridData(
-                    show: true, 
+                    show: true,
                     drawVerticalLine: false,
-                    getDrawingHorizontalLine: (value) => FlLine(color: AppTheme.timelineBg, strokeWidth: 1),
+                    getDrawingHorizontalLine: (value) =>
+                        FlLine(color: AppTheme.timelineBg, strokeWidth: 1),
                   ),
                   titlesData: FlTitlesData(
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (value, meta) {
                           int idx = value.toInt();
-                          if (idx < 0 || idx >= xLabels.length) return const SizedBox.shrink();
+                          if (idx < 0 || idx >= xLabels.length)
+                            return const SizedBox.shrink();
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(xLabels[idx], style: const TextStyle(color: AppTheme.textGray, fontSize: 10)),
+                            child: Text(xLabels[idx],
+                                style: const TextStyle(
+                                    color: AppTheme.textGray, fontSize: 10)),
                           );
                         },
                       ),
@@ -248,14 +306,18 @@ class _TrendScreenState extends State<TrendScreen> {
                         showTitles: true,
                         reservedSize: 40,
                         getTitlesWidget: (value, meta) {
-                          return Text('${value.toInt()}%', style: const TextStyle(color: AppTheme.textGray, fontSize: 10));
+                          return Text('${value.toInt()}%',
+                              style: const TextStyle(
+                                  color: AppTheme.textGray, fontSize: 10));
                         },
                       ),
                     ),
                   ),
                   borderData: FlBorderData(show: false),
-                  minX: 0, maxX: 6,
-                  minY: 0, maxY: 100,
+                  minX: 0,
+                  maxX: 6,
+                  minY: 0,
+                  maxY: 100,
                   lineBarsData: [
                     LineChartBarData(
                       spots: spots,
@@ -264,11 +326,14 @@ class _TrendScreenState extends State<TrendScreen> {
                       barWidth: 4,
                       isStrokeCapRound: true,
                       dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                          radius: 4, color: AppTheme.deepNavy, strokeWidth: 2, strokeColor: AppTheme.mutedTeal,
-                        )
-                      ),
+                          show: true,
+                          getDotPainter: (spot, percent, barData, index) =>
+                              FlDotCirclePainter(
+                                radius: 4,
+                                color: AppTheme.deepNavy,
+                                strokeWidth: 2,
+                                strokeColor: AppTheme.mutedTeal,
+                              )),
                       belowBarData: BarAreaData(
                         show: true,
                         gradient: LinearGradient(

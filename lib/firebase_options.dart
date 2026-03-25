@@ -60,7 +60,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '880648187658',
     projectId: 'joongshim-uji',
     storageBucket: 'joongshim-uji.firebasestorage.app',
-    iosClientId: '880648187658-6643bsvub7h17tp0rhp7d6q0hiuebmhh.apps.googleusercontent.com',
+    iosClientId:
+        '880648187658-6643bsvub7h17tp0rhp7d6q0hiuebmhh.apps.googleusercontent.com',
     iosBundleId: 'com.uji.joongshim',
   );
 

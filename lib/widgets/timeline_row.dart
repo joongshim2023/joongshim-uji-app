@@ -35,20 +35,20 @@ class TimelineRow extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected 
+          color: isSelected
               ? AppTheme.mutedTeal.withOpacity(0.15)
-              : isCurrent 
+              : isCurrent
                   ? AppTheme.yellowAccent.withOpacity(0.1)
-                  : hasData 
+                  : hasData
                       ? AppTheme.mutedTeal.withOpacity(0.05)
                       : isActiveWindow
                           ? AppTheme.textGray.withOpacity(0.03)
                           : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected 
+            color: isSelected
                 ? AppTheme.mutedTeal.withOpacity(0.5)
-                : isCurrent 
+                : isCurrent
                     ? AppTheme.yellowAccent.withOpacity(0.4)
                     : Colors.transparent,
           ),
@@ -70,12 +70,15 @@ class TimelineRow extends StatelessWidget {
                         fontFamily: 'monospace',
                         fontSize: 16,
                         height: 1.0,
-                        fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected 
-                            ? AppTheme.mutedTeal 
-                            : isCurrent 
-                                ? AppTheme.yellowAccent 
-                                : (isActiveWindow ? AppTheme.textWhite.withOpacity(0.9) : AppTheme.textGray),
+                        fontWeight:
+                            isCurrent ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected
+                            ? AppTheme.mutedTeal
+                            : isCurrent
+                                ? AppTheme.yellowAccent
+                                : (isActiveWindow
+                                    ? AppTheme.textWhite.withOpacity(0.9)
+                                    : AppTheme.textGray),
                       ),
                     ),
                     Row(
@@ -87,13 +90,16 @@ class TimelineRow extends StatelessWidget {
                             fontSize: 8,
                             height: 1.0,
                             fontWeight: FontWeight.bold,
-                            color: isSelected ? AppTheme.mutedTeal.withOpacity(0.8) : AppTheme.textGray,
+                            color: isSelected
+                                ? AppTheme.mutedTeal.withOpacity(0.8)
+                                : AppTheme.textGray,
                           ),
                         ),
                         if (isNextDay) ...[
                           const SizedBox(width: 2),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 0),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 2, vertical: 0),
                             decoration: BoxDecoration(
                               color: AppTheme.softIndigo.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(3),
@@ -114,7 +120,7 @@ class TimelineRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              
+
               // 게이지 바
               Expanded(
                 child: Stack(
@@ -124,7 +130,9 @@ class TimelineRow extends StatelessWidget {
                     Container(
                       height: 10,
                       decoration: BoxDecoration(
-                        color: isActiveWindow ? AppTheme.timelineBg.withOpacity(0.5) : AppTheme.timelineBg,
+                        color: isActiveWindow
+                            ? AppTheme.timelineBg.withOpacity(0.5)
+                            : AppTheme.timelineBg,
                         borderRadius: BorderRadius.circular(5),
                       ),
                     ),
@@ -133,7 +141,11 @@ class TimelineRow extends StatelessWidget {
                       child: Container(
                         height: 10,
                         decoration: BoxDecoration(
-                          color: isSelected ? AppTheme.mutedTeal : (pct >= 80 ? AppTheme.mutedTeal : AppTheme.softIndigo),
+                          color: isSelected
+                              ? AppTheme.mutedTeal
+                              : (pct >= 80
+                                  ? AppTheme.mutedTeal
+                                  : AppTheme.softIndigo),
                           borderRadius: BorderRadius.circular(5),
                         ),
                       ),
@@ -158,7 +170,7 @@ class TimelineRow extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               // 퍼센트 및 분 텍스트
               const SizedBox(width: 8),
               SizedBox(
@@ -171,7 +183,10 @@ class TimelineRow extends StatelessWidget {
                       hasData ? '${minutes}분' : '—',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: hasData ? AppTheme.textWhite : AppTheme.textGray.withOpacity(isActiveWindow ? 0.6 : 0.3),
+                        color: hasData
+                            ? AppTheme.textWhite
+                            : AppTheme.textGray
+                                .withOpacity(isActiveWindow ? 0.6 : 0.3),
                         fontSize: 10,
                         letterSpacing: -0.5,
                       ),
@@ -181,7 +196,9 @@ class TimelineRow extends StatelessWidget {
                       hasData ? '$pct%' : '',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: pct >= 80 ? AppTheme.activeGreen : AppTheme.softIndigo,
+                        color: pct >= 80
+                            ? AppTheme.activeGreen
+                            : AppTheme.softIndigo,
                         fontWeight: FontWeight.bold,
                         fontSize: 11,
                         letterSpacing: -0.5,

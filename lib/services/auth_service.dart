@@ -10,12 +10,16 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  Future<UserCredential> signInWithEmailPassword(String email, String password) async {
-    return await _auth.signInWithEmailAndPassword(email: email, password: password);
+  Future<UserCredential> signInWithEmailPassword(
+      String email, String password) async {
+    return await _auth.signInWithEmailAndPassword(
+        email: email, password: password);
   }
 
-  Future<UserCredential> registerWithEmailPassword(String email, String password) async {
-    return await _auth.createUserWithEmailAndPassword(email: email, password: password);
+  Future<UserCredential> registerWithEmailPassword(
+      String email, String password) async {
+    return await _auth.createUserWithEmailAndPassword(
+        email: email, password: password);
   }
 
   Future<void> sendPasswordReset(String email) async {
@@ -30,7 +34,8 @@ class AuthService {
     } else {
       final result = await GoogleSignIn.instance.authenticate();
       final idToken = result.authentication.idToken;
-      if (idToken == null) throw Exception('Google 로그인 실패: idToken을 가져올 수 없습니다.');
+      if (idToken == null)
+        throw Exception('Google 로그인 실패: idToken을 가져올 수 없습니다.');
       final credential = GoogleAuthProvider.credential(idToken: idToken);
       return await _auth.signInWithCredential(credential);
     }
@@ -73,7 +78,8 @@ class AuthService {
   Future<void> reauthenticateWithPassword(String email, String password) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('로그인된 사용자가 없습니다.');
-    final credential = EmailAuthProvider.credential(email: email, password: password);
+    final credential =
+        EmailAuthProvider.credential(email: email, password: password);
     await user.reauthenticateWithCredential(credential);
   }
 

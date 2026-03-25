@@ -40,7 +40,8 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.bgCard,
         foregroundColor: AppTheme.textWhite,
-        title: const Text('개인정보처리방침', style: TextStyle(color: AppTheme.textWhite, fontSize: 16)),
+        title: const Text('개인정보처리방침',
+            style: TextStyle(color: AppTheme.textWhite, fontSize: 16)),
         leading: IconButton(
           icon: const Icon(Icons.close, color: AppTheme.textWhite),
           onPressed: () => Navigator.pop(context),
@@ -52,13 +53,18 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.policy_outlined, color: AppTheme.mutedTeal, size: 48),
+                  const Icon(Icons.policy_outlined,
+                      color: AppTheme.mutedTeal, size: 48),
                   const SizedBox(height: 16),
-                  const Text('아래 링크를 브라우저에서 열어주세요.', style: TextStyle(color: AppTheme.textGray)),
+                  const Text('아래 링크를 브라우저에서 열어주세요.',
+                      style: TextStyle(color: AppTheme.textGray)),
                   const SizedBox(height: 12),
                   SelectableText(
                     _url,
-                    style: const TextStyle(color: AppTheme.mutedTeal, fontSize: 13, decoration: TextDecoration.underline),
+                    style: const TextStyle(
+                        color: AppTheme.mutedTeal,
+                        fontSize: 13,
+                        decoration: TextDecoration.underline),
                   ),
                 ],
               ),
@@ -67,7 +73,9 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
               children: [
                 WebViewWidget(controller: _controller),
                 if (_isLoading)
-                  const Center(child: CircularProgressIndicator(color: AppTheme.mutedTeal)),
+                  const Center(
+                      child:
+                          CircularProgressIndicator(color: AppTheme.mutedTeal)),
               ],
             ),
     );
