@@ -17,8 +17,9 @@ class HomeScreen extends StatefulWidget {
   _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DateTime _now = DateTime.now();
+  bool _isSaveError = false;
   late DateTime _selectedDate;
   int _selectedHour = DateTime.now().hour;
   Timer? _timer;
@@ -43,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedDate = DateTime(_now.year, _now.month, _now.day);
     _timer = Timer.periodic(const Duration(minutes: 1), (time) {
       if (mounted) setState(() => _now = DateTime.now());
@@ -123,8 +125,17 @@ class _HomeScreenState extends State<HomeScreen> {
     return 24;
   }
 
+  bool _isFutureTime(int hour, bool isNextDay) {
+    bool isToday = DateFormat('yyyyMMdd').format(_selectedDate) ==
+        DateFormat('yyyyMMdd').format(_now);
+    if (!isToday) return false;
+    if (isNextDay) return true;
+    return hour > _now.hour;
+  }
+
   // 선택된 시간이 활동 시간인지 (다음날 구간 고려)
   bool get _isSelectedHourActive {
+    if (_isFutureTime(_selectedHour, _isNextDaySelected)) return false;
     if (_isNextDaySelected) return true; // 다음날 구간은 항상 활성
     if (_isOvernightMode) return _selectedHour >= _localStartHour;
     int end = _localEndHour == 24 ? 23 : _localEndHour;
@@ -142,9 +153,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _flushPending();
     _timer?.cancel();
     _timelineScrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _flushPending();
+    }
   }
 
   String get _dateKey => DateFormat('yyyy-MM-dd').format(_selectedDate);
@@ -158,28 +180,34 @@ class _HomeScreenState extends State<HomeScreen> {
   void _flushPending() {
     if (_debounce?.isActive ?? false) {
       _debounce!.cancel();
-      if (_pendingHour != null && _pendingMinutes != null && uid != null) {
-        final h = _pendingHour!;
-        final m = _pendingMinutes!;
-        _energy
-            .updateEnergyLog(
-          userId: uid!,
-          date: _selectedDate,
-          hour: h,
-          minutes: m,
-          startHour: _localStartHour,
-          endHour: _localEndHour,
-        )
-            .then((_) {
-          if (mounted) {
-            setState(
-                () => _optimisticRecords.remove(h.toString().padLeft(2, '0')));
-          }
-        });
-      }
-      _pendingHour = null;
-      _pendingMinutes = null;
     }
+    
+    if (_pendingHour != null && _pendingMinutes != null && uid != null) {
+      final h = _pendingHour!;
+      final m = _pendingMinutes!;
+      _energy
+          .updateEnergyLog(
+        userId: uid!,
+        date: _selectedDate,
+        hour: h,
+        minutes: m,
+        startHour: _localStartHour,
+        endHour: _localEndHour,
+      )
+          .then((_) {
+        if (mounted && _isSaveError) {
+          setState(() => _isSaveError = false);
+        }
+        // Do not remove optimistic record here to prevent flashing.
+        // The stream will eventually overwrite the state properly.
+      }).catchError((_) {
+        if (mounted && !_isSaveError) {
+          setState(() => _isSaveError = true);
+        }
+      });
+    }
+    _pendingHour = null;
+    _pendingMinutes = null;
   }
 
   void _updateEnergy(int minutes) {
@@ -191,13 +219,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _optimisticRecords[_selectedHour.toString().padLeft(2, '0')] = minutes;
+      _isSaveError = false; // Reset to blue optimistically
     });
 
     _pendingHour = _selectedHour;
     _pendingMinutes = minutes;
 
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 1500), () {
+    _debounce = Timer(const Duration(milliseconds: 300), () {
       _flushPending();
     });
   }
@@ -221,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _changeDate(int delta) {
     _flushPending();
     setState(() {
+      _optimisticRecords.clear();
       _selectedDate = _selectedDate.add(Duration(days: delta));
       if (DateFormat('yyyyMMdd').format(_selectedDate) ==
           DateFormat('yyyyMMdd').format(_now)) {
@@ -663,9 +693,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSummaryBadge(int totalMins, int pct) {
     int h = totalMins ~/ 60;
     int m = totalMins % 60;
-    String timeRangeLabel = _isOvernightMode
-        ? '$_localStartHour시 ~ 다음날 $_normalizedEndHour시'
-        : '$_localStartHour시 ~ $_localEndHour시';
+    String timeRangeLabel;
+    if (_localEndHour == 24) {
+      timeRangeLabel = '$_localStartHour시 ~ 24시(자정)';
+    } else if (_isOvernightMode) {
+      timeRangeLabel = '$_localStartHour시 ~ 다음날 $_normalizedEndHour시';
+    } else {
+      timeRangeLabel = '$_localStartHour시 ~ $_localEndHour시';
+    }
 
     return GestureDetector(
       onTap: _showTimeSettings,
@@ -711,22 +746,41 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                  color: AppTheme.timelineBg,
-                  borderRadius: BorderRadius.circular(12)),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            SizedBox(
+              width: double.infinity,
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  const Icon(Icons.schedule,
-                      size: 14, color: AppTheme.softIndigo),
-                  const SizedBox(width: 4),
-                  Text('활동시간 설정: $timeRangeLabel',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textWhite)),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.edit, size: 12, color: AppTheme.textGray),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: AppTheme.timelineBg,
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.schedule,
+                            size: 14, color: AppTheme.softIndigo),
+                        const SizedBox(width: 4),
+                        Text('활동시간 설정: $timeRangeLabel',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppTheme.textWhite)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.edit, size: 12, color: AppTheme.textGray),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: _isSaveError ? Colors.redAccent : AppTheme.activeGreen,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -744,7 +798,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ((mergedRecords[_selectedHour.toString().padLeft(2, '0')] ?? 0) as num)
             .toInt();
     int pct = (currentRecord / 60 * 100).toInt();
-    bool isActiveWindow = _isActive(_selectedHour);
+    bool isActiveWindow = _isSelectedHourActive;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 8, 16),
@@ -1016,7 +1070,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // 활동 시간 여부
           bool activeWindow;
-          if (nextDay) {
+          if (_isFutureTime(hour, nextDay)) {
+            activeWindow = false; // 현재 시간 이후는 비활성
+          } else if (nextDay) {
             activeWindow = true; // 다음날 구간: 항상 활성 (0~endHour-1)
           } else if (isOvernight) {
             activeWindow = hour >= _localStartHour; // 일반 구간: startHour 이상만 활성
