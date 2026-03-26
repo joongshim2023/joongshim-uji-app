@@ -76,6 +76,7 @@ class _MarqueeTextState extends State<MarqueeText> with SingleTickerProviderStat
         return ClipRect(
           child: SizedBox(
             width: constraints.maxWidth,
+            height: textPainter.height,
             child: AnimatedBuilder(
               animation: _controller,
               builder: (context, child) {
@@ -87,7 +88,8 @@ class _MarqueeTextState extends State<MarqueeText> with SingleTickerProviderStat
                   child: child,
                 );
               },
-              child: Align(
+              child: OverflowBox(
+                maxWidth: double.infinity,
                 alignment: Alignment.centerLeft,
                 child: Text(
                   widget.text,
