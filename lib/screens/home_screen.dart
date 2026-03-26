@@ -9,6 +9,7 @@ import '../widgets/timeline_row.dart';
 import '../services/auth_service.dart';
 import '../services/energy_service.dart';
 import '../services/notification_service.dart';
+import '../widgets/marquee_text.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -41,10 +42,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final ScrollController _timelineScrollController = ScrollController();
   bool _hasScrolledToCurrentTime = false;
 
+  String? _dailyPhrase;
+
+  Future<void> _loadDailyPhrase() async {
+    try {
+      final uSeed = uid?.hashCode ?? 0;
+      final doc = await FirebaseFirestore.instance.collection('app_config').doc('sentence').get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        List<dynamic> phrases = [];
+        if (data['phrase'] is List) {
+          phrases = data['phrase'] as List;
+        } else if (data['phrases'] is List) {
+          phrases = data['phrases'] as List;
+        } else if (data['good_phrase'] != null) {
+          phrases = [data['good_phrase']];
+        }
+
+        if (phrases.isNotEmpty) {
+          final dateSeed = _now.year * 10000 + _now.month * 100 + _now.day;
+          final index = (dateSeed + uSeed).abs() % phrases.length;
+          if (mounted) {
+            setState(() {
+              _dailyPhrase = phrases[index].toString();
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading phrase: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadDailyPhrase();
     _selectedDate = DateTime(_now.year, _now.month, _now.day);
     _timer = Timer.periodic(const Duration(minutes: 1), (time) {
       if (mounted) setState(() => _now = DateTime.now());
@@ -566,6 +600,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         });
   }
 
+  Widget _buildDailyPhraseBanner() {
+    if (_dailyPhrase == null || _dailyPhrase!.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.softIndigo.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.softIndigo.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.format_quote_rounded, color: AppTheme.softIndigo, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: MarqueeText(
+              text: _dailyPhrase!,
+              style: const TextStyle(color: AppTheme.textWhite, fontSize: 13, height: 1.2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.format_quote_rounded, color: AppTheme.softIndigo, size: 16),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -784,6 +846,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
+            _buildDailyPhraseBanner(),
           ],
         ),
       ),

@@ -5,6 +5,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -189,8 +190,19 @@ class NotificationService {
   }) async {
     if (kIsWeb) return;
 
+    final prefs = await SharedPreferences.getInstance();
+    final uid = _uid ?? 'unknown';
+    final String cacheKey = 'alarm_settings_cache_$uid';
+    final String currentSettings = '$startHour|$endHour|$intervalMinutes|$alarmOn';
+    
+    if (prefs.getString(cacheKey) == currentSettings) {
+      debugPrint('[알림] 설정 변경 없음 → 불필요한 알람 재생성 건너뜀 (기존 스케줄 유지)');
+      return;
+    }
+    await prefs.setString(cacheKey, currentSettings);
+
     await flutterLocalNotificationsPlugin.cancelAll();
-    debugPrint('[알림] 기존 알람 전체 취소 완료');
+    debugPrint('[알림] 기존 알람 전체 취소 및 스케줄 초기화 완료');
 
     if (!alarmOn) {
       debugPrint('[알림] alarmOn=false → 알람 예약 건너뜀');
