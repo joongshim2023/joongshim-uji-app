@@ -8,8 +8,10 @@ import '../widgets/energy_clock_picker.dart';
 import '../widgets/timeline_row.dart';
 import '../services/auth_service.dart';
 import '../services/energy_service.dart';
+import '../services/memo_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/marquee_text.dart';
+import 'memo_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -27,6 +29,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   final AuthService _authService = AuthService();
   final EnergyService _energy = EnergyService();
+  final MemoService _memoService = MemoService();
+  bool _hasMemoToday = false;
 
   int _localStartHour = 7;
   int _localEndHour = 24;
@@ -84,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted) setState(() => _now = DateTime.now());
     });
     _loadDefaultSettings();
+    _checkMemo();
   }
 
   Future<void> _loadDefaultSettings() async {
@@ -106,6 +111,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         intervalMinutes: data['alarmInterval'] ?? 60,
         alarmOn: data['alarmOn'] ?? true,
       );
+    }
+  }
+
+  Future<void> _checkMemo() async {
+    final u = uid;
+    if (u == null) return;
+    final dateKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    final data = await _memoService.getMemoOnce(u, dateKey);
+    if (mounted) {
+      setState(() {
+        _hasMemoToday = data != null && (data['content'] as String? ?? '').isNotEmpty;
+      });
     }
   }
 
@@ -296,6 +313,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _hasScrolledToCurrentTime = false;
     });
     _scrollToCurrentTime();
+    _checkMemo();
   }
 
   Future<void> _showTimeSettings() async {
@@ -307,21 +325,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     int maxEndHour = _defaultStartHour; // 취침시간 최댓값 (다음날 기상시간, 기본은 default)
 
     // 전날 취침시간 → 기상시간 하한
-    // 전날 데이터 없으면: minStartHour = 0 (제약 없음)
     final prevData = await _energy.getDailyLogOnce(
         u, _selectedDate.subtract(const Duration(days: 1)));
     if (prevData != null) {
       final int prevEnd = prevData['endHour'] ?? 24;
       final int prevStart = prevData['startHour'] ?? 7;
       if (prevEnd < prevStart) {
-        // 전날이 자정 초과(overnight) → 취침이 다음날 새벽 prevEnd시
         minStartHour = prevEnd;
       }
     }
 
     // 다음날 기상시간 → 취침시간 자정 초과 상한
-    // 다음날 데이터 있으면: 그 날의 기상시간
-    // 다음날 데이터 없으면: default 기상시간
     final nextData = await _energy.getDailyLogOnce(
         u, _selectedDate.add(const Duration(days: 1)));
     if (nextData != null) {
@@ -330,20 +344,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     if (!mounted) return;
 
+    // [버그수정] tempEnd 초기값 계산
+    // _localEndHour가 raw overnight 형식(< startHour)이면 피커용 24+h 인코딩으로 변환
+    // 예: 취침 다음날 2시 → DB에 2로 저장 → 피커에서는 26(24+2)으로 표현
+    int initialTempEnd = _localEndHour;
+    if (initialTempEnd < _localStartHour && initialTempEnd >= 0) {
+      // raw overnight 형식 → 24+h 인코딩으로 변환
+      initialTempEnd = 24 + initialTempEnd;
+    }
+    bool initialEndValid =
+        (initialTempEnd >= _localStartHour && initialTempEnd <= 24) ||
+        (initialTempEnd >= 24 && initialTempEnd <= 24 + maxEndHour);
+    if (!initialEndValid) initialTempEnd = _localStartHour;
+
     showDialog(
       context: context,
       builder: (context) {
         int tempStart = _localStartHour.clamp(minStartHour, 23);
-        int tempEnd = _localEndHour;
+        int tempEnd = initialTempEnd;
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // tempEnd 유효성 보정: 같은날(tempStart..24) 또는 다음날 인코딩(24+0..24+maxEndHour)
-            bool tempEndValid = (tempEnd >= tempStart && tempEnd <= 24) ||
-                (tempEnd >= 24 && tempEnd <= 24 + maxEndHour);
-            if (!tempEndValid) tempEnd = tempStart;
             bool isOvernight = tempEnd < tempStart || tempEnd >= 24;
-            // 다음날 실제 시간 (인코딩 해제)
             int displayEnd = tempEnd >= 24 ? tempEnd - 24 : tempEnd;
+
+            // 취침시간 레이블 헬퍼
+            String endLabel(int h) {
+              if (h == 24) return '24시(자정)';
+              if (h > 24) return '${h - 24}시(다음날)';
+              return '$h시';
+            }
 
             return AlertDialog(
               backgroundColor: AppTheme.bgCard,
@@ -357,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       style: const TextStyle(
                           color: AppTheme.textGray, fontSize: 12)),
                   const SizedBox(height: 20),
-                  // 기상 시간
+                  // 기상 시간: minStartHour ~ tempEnd(실제값) 직전까지
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -368,18 +397,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         dropdownColor: AppTheme.timelineBg,
                         style: const TextStyle(color: AppTheme.activeGreen),
                         items: List.generate(24, (i) => i)
-                            .where((h) => h >= minStartHour) // 전날 취침시간 이상만
-                            .map((h) =>
-                                DropdownMenuItem(value: h, child: Text('$h시')))
+                            .where((h) => h >= minStartHour)
+                            .map((h) => DropdownMenuItem(
+                                  value: h,
+                                  child: Text('$h시'),
+                                ))
                             .toList(),
                         onChanged: (val) {
-                          if (val != null)
-                            setDialogState(() => tempStart = val);
+                          if (val != null) {
+                            setDialogState(() {
+                              tempStart = val;
+                              // 기상시간 변경 시 취침시간이 기상시간보다 작으면 보정
+                              if (tempEnd < tempStart) tempEnd = tempStart;
+                            });
+                          }
                         },
                       )
                     ],
                   ),
-                  // 취침 시간
+                  // 취침 시간: tempStart시 ~ 24시(자정) + 1시(다음날)~maxEndHour시(다음날)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -390,15 +426,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         dropdownColor: AppTheme.timelineBg,
                         style: const TextStyle(color: AppTheme.activeGreen),
                         items: [
-                          // 1. 같은날: tempStart ~ 24 (24시 = 자정)
+                          // 같은날: tempStart ~ 24
                           for (int h = tempStart; h <= 24; h++)
                             DropdownMenuItem(
-                                value: h,
-                                child: Text(h == 24 ? '24시 (자정)' : '$h시')),
-                          // 2. 다음날: 1시부터 maxEndHour까지 (0시=자정=24시이므로 skip)
+                              value: h,
+                              child: Text(endLabel(h)),
+                            ),
+                          // 다음날: 1시 ~ maxEndHour시 (0시=24시=자정이므로 skip)
                           for (int h = 1; h <= maxEndHour; h++)
                             DropdownMenuItem(
-                                value: 24 + h, child: Text('$h시 (다음날)')),
+                              value: 24 + h,
+                              child: Text(endLabel(24 + h)),
+                            ),
                         ],
                         onChanged: (val) {
                           if (val != null) setDialogState(() => tempEnd = val);
@@ -642,46 +681,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textWhite)),
           const Spacer(),
+          // 메모 아이콘: 메모 있으면 accent color, 없으면 흐린 회색
           IconButton(
-            icon: const Icon(Icons.logout, color: AppTheme.textGray),
+            icon: Icon(
+              Icons.edit_note_rounded,
+              color: _hasMemoToday
+                  ? AppTheme.mutedTeal
+                  : AppTheme.textGray.withOpacity(0.4),
+              size: 28,
+            ),
             onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (_) => AlertDialog(
-                  backgroundColor: AppTheme.bgCard,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  title: const Text('로그아웃',
-                      style: TextStyle(color: AppTheme.textWhite)),
-                  content: const Text('로그아웃 하시겠습니까?',
-                      style: TextStyle(color: AppTheme.textGray)),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('취소',
-                          style: TextStyle(color: AppTheme.textGray)),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('로그아웃',
-                          style: TextStyle(
-                              color: Colors.redAccent,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                  ],
+              final u = uid;
+              if (u == null) return;
+              await Navigator.push(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (_, animation, secondaryAnimation) =>
+                      MemoScreen(
+                    initialDate: _selectedDate,
+                    userId: u,
+                  ),
+                  transitionsBuilder:
+                      (_, animation, secondaryAnimation, child) {
+                    const begin = Offset(0.0, 1.0);
+                    const end = Offset.zero;
+                    const curve = Curves.easeOutCubic;
+                    final tween = Tween(begin: begin, end: end)
+                        .chain(CurveTween(curve: curve));
+                    return SlideTransition(
+                      position: animation.drive(tween),
+                      child: child,
+                    );
+                  },
+                  transitionDuration: const Duration(milliseconds: 350),
                 ),
               );
-              if (confirm == true) {
-                try {
-                  await _authService.signOut();
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('로그아웃 오류: $e')),
-                    );
-                  }
-                }
-              }
+              // 메모 화면에서 돌아온 후 메모 상태 갱신
+              _checkMemo();
             },
           ),
         ],
@@ -721,7 +757,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   );
                 },
               );
-              if (picked != null) setState(() => _selectedDate = picked);
+              if (picked != null) {
+                setState(() => _selectedDate = picked);
+                _checkMemo();
+              }
             },
             child: Column(
               children: [
@@ -732,12 +771,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         color: AppTheme.textWhite)),
                 if (isToday)
                   const Text('오늘',
-                      style:
-                          TextStyle(fontSize: 12, color: AppTheme.activeGreen)),
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.activeGreen)),
                 if (!isToday)
                   const Text('과거 기록',
-                      style:
-                          TextStyle(fontSize: 12, color: AppTheme.softIndigo)),
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.softIndigo)),
               ],
             ),
           ),
@@ -759,7 +798,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_localEndHour == 24) {
       timeRangeLabel = '$_localStartHour시 ~ 24시(자정)';
     } else if (_isOvernightMode) {
-      timeRangeLabel = '$_localStartHour시 ~ 다음날 $_normalizedEndHour시';
+      timeRangeLabel = '$_localStartHour시 ~ $_normalizedEndHour시(다음날)';
     } else {
       timeRangeLabel = '$_localStartHour시 ~ $_localEndHour시';
     }

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/energy_service.dart';
+import '../services/memo_service.dart';
 
 class TrendScreen extends StatefulWidget {
   const TrendScreen({Key? key}) : super(key: key);
@@ -22,6 +23,10 @@ class _TrendScreenState extends State<TrendScreen> {
 
   final AuthService _auth = AuthService();
   final EnergyService _energy = EnergyService();
+  final MemoService _memoService = MemoService();
+
+  // 메모 있는 날짜 Set (yyyy-MM-dd)
+  Set<String> _memoDates = {};
 
   @override
   void initState() {
@@ -30,6 +35,24 @@ class _TrendScreenState extends State<TrendScreen> {
     int daysFromMonday = now.weekday - 1;
     _currentWeekStart = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: daysFromMonday));
+    _loadMemoDates();
+  }
+
+  /// 현재 월의 메모 있는 날짜 목록 로드
+  Future<void> _loadMemoDates() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    final start = DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final end = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+    final memos = await _memoService.getMemosInRange(uid, start, end);
+    if (mounted) {
+      setState(() {
+        _memoDates = memos
+            .where((m) => (m['content'] as String? ?? '').isNotEmpty)
+            .map((m) => m['date'] as String)
+            .toSet();
+      });
+    }
   }
 
   void _changeMonth(int delta) {
@@ -37,6 +60,7 @@ class _TrendScreenState extends State<TrendScreen> {
       _currentMonth =
           DateTime(_currentMonth.year, _currentMonth.month + delta, 1);
     });
+    _loadMemoDates();
   }
 
   void _changeWeek(int delta) {
@@ -187,11 +211,13 @@ class _TrendScreenState extends State<TrendScreen> {
                 int? efficiency = EFF_MAP[dateKey];
                 bool isToday = DateFormat('yyyyMMdd').format(d) ==
                     DateFormat('yyyyMMdd').format(DateTime.now());
+                bool hasMemo = _memoDates.contains(dateKey);
 
                 return Container(
                   decoration: BoxDecoration(
-                    color: efficiency != null
-                        ? AppTheme.mutedTeal.withOpacity(0.2)
+                    // teal 틴트 = 메모 있는 날짜, 기본 = bgCard
+                    color: hasMemo
+                        ? AppTheme.mutedTeal.withOpacity(0.22)
                         : AppTheme.bgCard,
                     borderRadius: BorderRadius.circular(8),
                     border: isToday
@@ -207,6 +233,7 @@ class _TrendScreenState extends State<TrendScreen> {
                               color: isToday
                                   ? AppTheme.yellowAccent
                                   : AppTheme.textWhite)),
+                      // 기록 있는 날: % 숫자 표시
                       if (efficiency != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4.0),
@@ -222,6 +249,18 @@ class _TrendScreenState extends State<TrendScreen> {
               },
             ),
           )
+          // 하단 범례 설명
+          ,
+          const Padding(
+            padding: EdgeInsets.only(top: 8.0, bottom: 4.0),
+            child: Text(
+              '메모가 있는 날은 배경색이 다릅니다.',
+              style: TextStyle(
+                fontSize: 11,
+                color: AppTheme.textGray,
+              ),
+            ),
+          ),
         ],
       ),
     );

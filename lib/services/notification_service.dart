@@ -194,10 +194,15 @@ class NotificationService {
     final uid = _uid ?? 'unknown';
     final String cacheKey = 'alarm_settings_cache_$uid';
     final String currentSettings = '$startHour|$endHour|$intervalMinutes|$alarmOn';
-    
+
     if (prefs.getString(cacheKey) == currentSettings) {
-      debugPrint('[알림] 설정 변경 없음 → 불필요한 알람 재생성 건너뜀 (기존 스케줄 유지)');
-      return;
+      // 기존 알람이 충분히 예약돼 있는지 확인
+      final pending = await getPendingCount();
+      if (pending > 0) {
+        debugPrint('[알림] 설정 변경 없음 + 예약 알람 $pending개 존재 → 건너뜀');
+        return;
+      }
+      debugPrint('[알림] 설정 동일하지만 예약 알람 0개 → 재등록 진행');
     }
     await prefs.setString(cacheKey, currentSettings);
 
@@ -213,11 +218,12 @@ class NotificationService {
     int id = 0;
     int scheduledCount = 0;
 
-    // 정밀 알람 권한 확인
-    final bool canExact = await canScheduleExactAlarms();
+    // Android: 정밀 알람 권한 확인
+    // iOS: 항상 exact 모드 사용 (권한 불필요)
+    final bool canExact = Platform.isIOS ? true : await canScheduleExactAlarms();
 
-    // Android 12+: SCHEDULE_EXACT_ALARM + USE_EXACT_ALARM 중 하나 필요
-    // 권한 없으면 inexact 로 폴백 (몇 분 지연 가능)
+    // Android 12+: 권한이 없으면 inexact 폴백, 있으면 exactAllowWhileIdle
+    // iOS: 항상 matchDateTimeComponents.time 방식으로 정확한 시간 예약
     final AndroidScheduleMode mode = canExact
         ? AndroidScheduleMode.exactAllowWhileIdle
         : AndroidScheduleMode.inexactAllowWhileIdle;
@@ -225,45 +231,35 @@ class NotificationService {
     debugPrint('[알림] 스케줄 모드: ${canExact ? "exact" : "inexact (권한 없음)"}');
     debugPrint('[알림] 알람 범위: $startHour시 ~ $endHour시, ${intervalMinutes}분 간격');
 
-    // 자정 초과 여부 확인 (기상시간 > 취침시간인 경우)
+    // 시간-분 쌍 목록 생성
+    final List<List<int>> slots = [];
     bool isOvernight = endHour < startHour;
 
     if (isOvernight) {
-      // 기상시간부터 자정까지
       for (int h = startHour; h < 24; h++) {
-        await _scheduleDaily(id++, h, 0, now, mode);
-        scheduledCount++;
-        if (intervalMinutes == 30) {
-          await _scheduleDaily(id++, h, 30, now, mode);
-          scheduledCount++;
-        }
+        slots.add([h, 0]);
+        if (intervalMinutes == 30) slots.add([h, 30]);
       }
-      // 자정부터 취침시간까지
       for (int h = 0; h < endHour; h++) {
-        await _scheduleDaily(id++, h, 0, now, mode);
-        scheduledCount++;
-        if (intervalMinutes == 30) {
-          await _scheduleDaily(id++, h, 30, now, mode);
-          scheduledCount++;
-        }
+        slots.add([h, 0]);
+        if (intervalMinutes == 30) slots.add([h, 30]);
       }
-      // 취침시간 정각
-      await _scheduleDaily(id++, endHour, 0, now, mode);
-      scheduledCount++;
+      slots.add([endHour, 0]);
     } else {
       for (int h = startHour; h < endHour; h++) {
-        await _scheduleDaily(id++, h, 0, now, mode);
-        scheduledCount++;
-        if (intervalMinutes == 30) {
-          await _scheduleDaily(id++, h, 30, now, mode);
-          scheduledCount++;
-        }
+        slots.add([h, 0]);
+        if (intervalMinutes == 30) slots.add([h, 30]);
       }
-      // endHour 정각 알람 (24시 이상은 스킵)
-      if (endHour < 24) {
-        await _scheduleDaily(id++, endHour, 0, now, mode);
-        scheduledCount++;
-      }
+      if (endHour < 24) slots.add([endHour, 0]);
+    }
+
+    // iOS는 최대 64개 알람 제한 → 초과 시 앞에서부터 잘라냄
+    final maxSlots = Platform.isIOS ? 64 : 500;
+    final usedSlots = slots.length > maxSlots ? slots.sublist(0, maxSlots) : slots;
+
+    for (final slot in usedSlots) {
+      await _scheduleDaily(id++, slot[0], slot[1], now, mode);
+      scheduledCount++;
     }
 
     debugPrint(

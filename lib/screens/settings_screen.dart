@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -11,6 +12,7 @@ import '../theme/app_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/auth_service.dart';
 import '../services/energy_service.dart';
+import '../services/memo_service.dart';
 import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -23,6 +25,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _auth = AuthService();
   final EnergyService _energy = EnergyService();
+  final MemoService _memoService = MemoService();
 
   void _showErrorDialog(String title, String message) {
     if (!mounted) return;
@@ -150,7 +153,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
         context: context,
         builder: (_) {
-          int tempVal = currentValue;
+          // overnight 판단: endHour < startHour (다음날 raw 저장) 또는 endHour >= 24 (인코딩)
+          final bool currentlyOvernight =
+              _endHour < _startHour || _endHour >= 24;
+
+          // 기상시간 상한 계산:
+          // - overnight 모드: 기상 가능 시간은 0~23시 모두 (취침이 다음날이므로)
+          // - 같은날 모드: endHour - 1 (취침시간 직전까지)
+          final int startUpperBound = currentlyOvernight
+              ? 23
+              : (_endHour == 24 ? 23 : (_endHour > 0 ? _endHour - 1 : 0));
+
+          // tempVal이 유효 범위에 있는지 확인하고 클램프
+          int tempVal = isEndHour
+              ? currentValue
+              : currentValue.clamp(0, startUpperBound);
+
           return StatefulBuilder(builder: (context, setDialogState) {
             bool isOvernight = isEndHour && tempVal < _startHour;
             return AlertDialog(
@@ -164,14 +182,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       value: tempVal,
                       dropdownColor: AppTheme.timelineBg,
                       style: const TextStyle(color: AppTheme.activeGreen),
-                      items:
-                          List.generate(max - min + 1, (i) => i + min).map((h) {
-                        bool overnight = isEndHour && h < _startHour;
-                        return DropdownMenuItem(
-                          value: h,
-                          child: Text(overnight ? '$h시 (다음날)' : '$h시'),
-                        );
-                      }).toList(),
+                      items: (() {
+                        if (!isEndHour) {
+                          // 기상시간: 0시 ~ startUpperBound시
+                          return List.generate(
+                            startUpperBound + 1,
+                            (i) => i,
+                          ).map((h) => DropdownMenuItem(
+                                value: h,
+                                child: Text('$h시'),
+                              )).toList();
+                        } else {
+                          // 취침시간: 기상시간시 ~ 24시(자정) + 1시(다음날) ~
+                          // (기상시간-1)시(다음날)
+                          final sameDay = List.generate(
+                              max - _startHour + 1, (i) => i + _startHour);
+                          // 다음날: 1시 ~ (_startHour-1)시 (0시=24시=자정이므로 skip)
+                          final nextDay = _startHour > 0
+                              ? List.generate(_startHour - 1, (i) => i + 1)
+                              : <int>[];
+                          return [
+                            ...sameDay.map((h) => DropdownMenuItem(
+                                  value: h,
+                                  child: Text(h == 24 ? '24시(자정)' : '$h시'),
+                                )),
+                            ...nextDay.map((h) => DropdownMenuItem(
+                                  value: h,
+                                  child: Text('$h시(다음날)'),
+                                )),
+                          ];
+                        }
+                      })(),
                       onChanged: (val) {
                         if (val != null)
                           setDialogState(() {
@@ -554,20 +595,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _exportTXT(DateTime start, DateTime end) async {
+  Future<void> _exportLogsCSV(DateTime start, DateTime end) async {
     if (_auth.currentUser == null) return;
     String uid = _auth.currentUser!.uid;
+    final now = DateTime.now();
+    final nowStr = DateFormat('yyyyMMdd-HHmm').format(now);
 
     try {
       final snapshot = await _energy.getLogsStream(uid, start, end).first;
       StringBuffer buf = StringBuffer();
-      buf.writeln('===== 중심 유지 App 활동 기록 =====');
-      buf.writeln(
-          '기간: ${DateFormat('yyyy-MM-dd').format(start)} ~ ${DateFormat('yyyy-MM-dd').format(end)}');
-      buf.writeln(
-          '생성일: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}');
-      buf.writeln('================================');
-      buf.writeln();
+
+      // CSV 헤더
+      buf.writeln('날짜,활동시간대,유지시간(분),총활동시간(분),유지비중(%)');
 
       var docs = snapshot.docs.toList();
       docs.sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
@@ -579,33 +618,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
         int endH = data['endHour'] ?? 24;
         int totalMin = data['totalActiveMinutes'] ?? 0;
         num eff = data['efficiencyPct'] ?? 0;
-        buf.writeln('[$date]');
-        buf.writeln('  활동 시간: $startH:00 ~ $endH:00');
-        buf.writeln('  유지 시간: ${totalMin}분');
-        buf.writeln('  유지율:   $eff%');
-        buf.writeln();
+
+        // 활동시간대 레이블
+        String timeRange;
+        if (endH == 24) {
+          timeRange = '$startH시-24시(자정)';
+        } else if (endH > 24) {
+          timeRange = '$startH시-${endH - 24}시(다음날)';
+        } else if (endH < startH) {
+          timeRange = '$startH시-$endH시(다음날)';
+        } else {
+          timeRange = '$startH시-$endH시';
+        }
+
+        // 목표 시간 계산
+        bool isOvernight = endH < startH || endH > 24;
+        int actualEnd = endH > 24 ? endH - 24 : endH;
+        int goalMin;
+        if (isOvernight) {
+          goalMin = ((24 - startH) + actualEnd) * 60;
+        } else {
+          int e = endH == 24 ? 23 : endH;
+          goalMin = (e - startH + 1) * 60;
+        }
+
+        String effStr = eff.toStringAsFixed(1);
+        buf.writeln('$date,$timeRange,$totalMin,$goalMin,$effStr');
       }
 
       if (docs.isEmpty) {
         buf.writeln('해당 기간에 기록된 데이터가 없습니다.');
       }
 
-      // 임시 디렉토리에 실제 .txt 파일 저장 후 공유 (일부 앱에서 XFile.fromData 인식 불가 문제 해결)
-      final dir = await getTemporaryDirectory();
-      final fileName =
-          'uji_logs_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.txt';
-      final filePath = '${dir.path}/$fileName';
-      final ioFile = File(filePath);
-      await ioFile.writeAsString(buf.toString(), encoding: utf8);
-
-      final xFile = XFile(filePath, mimeType: 'text/plain', name: fileName);
-      await Share.shareXFiles([xFile], subject: '중심유지 App 활동 기록');
+      // 웹: XFile.fromData (path_provider 미지원)
+      // 모바일: 실제 파일 저장 후 공유
+      final csvBytes = Uint8List.fromList(utf8.encode(buf.toString()));
+      final fileName = '중심유지 App 활동기록-$nowStr.csv';
+      XFile xFile;
+      if (kIsWeb) {
+        xFile = XFile.fromData(csvBytes, mimeType: 'text/csv', name: fileName);
+      } else {
+        final dir = await getTemporaryDirectory();
+        final filePath = '${dir.path}/$fileName';
+        await File(filePath).writeAsBytes(csvBytes);
+        xFile = XFile(filePath, mimeType: 'text/csv', name: fileName);
+      }
+      await Share.shareXFiles([xFile], subject: '중심유지 App 활동기록');
     } catch (e) {
       _showErrorDialog('내보내기 실패', '파일 생성 중 오류가 발생했습니다.\n$e');
     }
   }
 
-  void _showExportPopup() {
+  Future<void> _exportMemosTXT(DateTime start, DateTime end) async {
+    if (_auth.currentUser == null) return;
+    String uid = _auth.currentUser!.uid;
+    final now = DateTime.now();
+    final nowStr = DateFormat('yyyyMMdd-HHmm').format(now);
+
+    try {
+      final memos = await _memoService.getMemosInRange(uid, start, end);
+      StringBuffer buf = StringBuffer();
+      buf.writeln('날짜,메모');
+
+      for (var memo in memos) {
+        final date = memo['date'] as String;
+        // CSV 안전: 큰따옴표 이스케이프
+        final content = (memo['content'] as String? ?? '')
+            .replaceAll('"', '""')
+            .replaceAll('\n', ' ');
+        buf.writeln('$date,"$content"');
+      }
+
+      if (memos.isEmpty) {
+        buf.writeln('해당 기간에 메모가 없습니다.');
+      }
+
+      // 웹: XFile.fromData (path_provider 미지원)
+      // 모바일: 실제 파일 저장 후 공유
+      final csvBytes = Uint8List.fromList(utf8.encode(buf.toString()));
+      final fileName = '중심유지 App 메모-$nowStr.csv';
+      XFile xFile;
+      if (kIsWeb) {
+        xFile = XFile.fromData(csvBytes, mimeType: 'text/csv', name: fileName);
+      } else {
+        final dir = await getTemporaryDirectory();
+        final filePath = '${dir.path}/$fileName';
+        await File(filePath).writeAsBytes(csvBytes);
+        xFile = XFile(filePath, mimeType: 'text/csv', name: fileName);
+      }
+      await Share.shareXFiles([xFile], subject: '중심유지 App 메모');
+    } catch (e) {
+      _showErrorDialog('메모 내보내기 실패', '파일 생성 중 오류가 발생했습니다.\n$e');
+    }
+  }
+
+  void _showExportPopup({bool isMemo = false}) {
     DateTime start = DateTime.now().subtract(const Duration(days: 30));
     DateTime end = DateTime.now();
     showDialog(
@@ -613,11 +720,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (_) => StatefulBuilder(builder: (context, setDialogState) {
               return AlertDialog(
                   backgroundColor: AppTheme.bgCard,
-                  title: const Text('기록 범위 선택',
-                      style: TextStyle(color: AppTheme.textWhite)),
+                  title: Text(
+                    isMemo ? '메모 내보내기 범위 선택' : '기록 내보내기 범위 선택',
+                    style: const TextStyle(color: AppTheme.textWhite),
+                  ),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('추출할 데이터의 시작 날짜와 종료 날짜를 선택하세요.',
-                        style: TextStyle(color: AppTheme.textGray)),
+                    Text(
+                      isMemo
+                          ? '추출할 메모의 시작 날짜와 종료 날짜를 선택하세요.'
+                          : '추출할 데이터의 시작 날짜와 종료 날짜를 선택하세요.',
+                      style: const TextStyle(color: AppTheme.textGray),
+                    ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -673,12 +786,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     TextButton(
                         onPressed: () {
                           Navigator.pop(context);
-                          _exportTXT(start, end);
+                          if (isMemo) {
+                            _exportMemosTXT(start, end);
+                          } else {
+                            _exportLogsCSV(start, end);
+                          }
                         },
-                        child: const Text('내보내기 (TXT)',
-                            style: TextStyle(
-                                color: AppTheme.mutedTeal,
-                                fontWeight: FontWeight.bold))),
+                        child: Text(
+                          isMemo ? '메모 내보내기 (CSV)' : '기록 내보내기 (CSV)',
+                          style: const TextStyle(
+                              color: AppTheme.mutedTeal,
+                              fontWeight: FontWeight.bold),
+                        )),
                   ]);
             }));
   }
@@ -821,8 +940,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: _showProfile),
                 _buildListTile(
                     icon: Icons.text_snippet_outlined,
-                    title: "기록 내보내기 (TXT)",
-                    onTap: _showExportPopup),
+                    title: "기록 내보내기 (CSV)",
+                    onTap: () => _showExportPopup(isMemo: false)),
+                _buildListTile(
+                    icon: Icons.note_outlined,
+                    title: "메모 내보내기 (CSV)",
+                    onTap: () => _showExportPopup(isMemo: true)),
                 _buildListTile(
                   icon: Icons.policy_outlined,
                   title: "개인정보처리방침",
