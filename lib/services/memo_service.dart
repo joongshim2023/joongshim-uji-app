@@ -39,6 +39,40 @@ class MemoService {
     }
   }
 
+  /// 메모가 존재하는 모든 날짜 ID(yyyy-MM-dd) 목록 반환 (정렬됨)
+  Future<List<String>> getMemoDatesSorted(String userId) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(userId)
+        .collection('daily_memos')
+        .get();
+    final dates = snapshot.docs
+        .where((doc) {
+          final content = (doc.data()['content'] as String? ?? '').trim();
+          return content.isNotEmpty;
+        })
+        .map((doc) => doc.id)
+        .toList()
+      ..sort();
+    return dates;
+  }
+
+  /// [currentDateId] 기준으로 이전 메모 날짜 반환 (없으면 null)
+  Future<String?> getPrevMemoDate(String userId, String currentDateId) async {
+    final dates = await getMemoDatesSorted(userId);
+    final earlier = dates.where((d) => d.compareTo(currentDateId) < 0).toList();
+    if (earlier.isEmpty) return null;
+    return earlier.last;
+  }
+
+  /// [currentDateId] 기준으로 다음 메모 날짜 반환 (없으면 null)
+  Future<String?> getNextMemoDate(String userId, String currentDateId) async {
+    final dates = await getMemoDatesSorted(userId);
+    final later = dates.where((d) => d.compareTo(currentDateId) > 0).toList();
+    if (later.isEmpty) return null;
+    return later.first;
+  }
+
   /// 날짜별 메모 목록 조회 (내보내기용)
   Future<List<Map<String, dynamic>>> getMemosInRange(
       String userId, DateTime start, DateTime end) async {

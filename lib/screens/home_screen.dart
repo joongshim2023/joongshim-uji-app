@@ -612,6 +612,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           int currentHour = isToday ? _now.hour : -1;
           int currentMin = isToday ? _now.minute : -1;
 
+          // 홈 화면: 스와이프 날짜 이동 없음 (날짜 이동은 상단 화살표 버튼 사용)
           return SafeArea(
             child: Column(
               children: [
@@ -643,8 +644,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_dailyPhrase == null || _dailyPhrase!.isEmpty) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppTheme.softIndigo.withOpacity(0.15),
         borderRadius: BorderRadius.circular(12),
@@ -806,8 +807,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return GestureDetector(
       onTap: _showTimeSettings,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        padding: const EdgeInsets.all(16.0),
+        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
         decoration: BoxDecoration(
             color: AppTheme.bgCard, borderRadius: BorderRadius.circular(20)),
         child: Column(
@@ -846,7 +847,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: Stack(

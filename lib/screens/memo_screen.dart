@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
@@ -33,6 +34,9 @@ class _MemoScreenState extends State<MemoScreen>
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
 
+  // 날짜바 반짝임 애니메이션
+  late AnimationController _flashController;
+  late Animation<double> _flashAnimation;
 
   @override
   void initState() {
@@ -50,6 +54,17 @@ class _MemoScreenState extends State<MemoScreen>
       parent: _slideController,
       curve: Curves.easeOutCubic,
     ));
+
+    // 반짝임 컨트롤러: 0→1→0
+    _flashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _flashAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 60),
+    ]).animate(CurvedAnimation(parent: _flashController, curve: Curves.easeInOut));
+
     _loadMemo();
   }
 
@@ -57,6 +72,7 @@ class _MemoScreenState extends State<MemoScreen>
   void dispose() {
     _textController.dispose();
     _slideController.dispose();
+    _flashController.dispose();
     super.dispose();
   }
 
@@ -121,6 +137,7 @@ class _MemoScreenState extends State<MemoScreen>
     return result ?? false;
   }
 
+  /// 날짜 직접 이동 (화살표 버튼용: 하루씩 이동)
   Future<void> _changeDate(int delta) async {
     if (!await _confirmUnsavedChanges()) return;
 
@@ -140,7 +157,87 @@ class _MemoScreenState extends State<MemoScreen>
       _selectedDate = newDate;
     });
     _slideController.forward(from: 0.0);
+    _flashDateNav();
     await _loadMemo();
+  }
+
+  /// 스와이프로 메모 있는 날로 이동 (delta: -1=이전, 1=다음)
+  Future<void> _swipeToMemoDate(int delta) async {
+    if (!await _confirmUnsavedChanges()) return;
+
+    final currentKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    String? targetKey;
+
+    if (delta < 0) {
+      targetKey = await _memoService.getPrevMemoDate(widget.userId, currentKey);
+    } else {
+      targetKey = await _memoService.getNextMemoDate(widget.userId, currentKey);
+    }
+
+    if (targetKey == null) {
+      // 더 이상 메모 있는 날 없음 → 팝업
+      if (mounted) {
+        _showNoMoreMemoDialog(delta < 0 ? '이전' : '이후');
+      }
+      return;
+    }
+
+    // 미래 날짜 금지
+    final targetDate = DateTime.parse(targetKey);
+    if (targetDate.isAfter(DateTime.now())) {
+      if (mounted) _showNoMoreMemoDialog('이후');
+      return;
+    }
+
+    setState(() {
+      _slideAnimation = Tween<Offset>(
+        begin: Offset(delta > 0 ? 1.0 : -1.0, 0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: _slideController,
+        curve: Curves.easeOutCubic,
+      ));
+      _selectedDate = targetDate;
+    });
+    _slideController.forward(from: 0.0);
+    _flashDateNav();
+    await _loadMemo();
+  }
+
+  /// 날짜 네비게이션 바 반짝임 효과
+  void _flashDateNav() {
+    _flashController.forward(from: 0.0);
+  }
+
+  /// 메모 없는 날 스와이프 시 안내 팝업
+  void _showNoMoreMemoDialog(String direction) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Row(
+          children: [
+            Icon(Icons.info_outline, color: AppTheme.softIndigo, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$direction 방향으로 메모 있는 날이 없습니다.',
+                style: const TextStyle(color: AppTheme.textWhite, fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인',
+                style: TextStyle(color: AppTheme.mutedTeal)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveMemo() async {
@@ -184,6 +281,26 @@ class _MemoScreenState extends State<MemoScreen>
     final bool isToday = DateFormat('yyyyMMdd').format(_selectedDate) ==
         DateFormat('yyyyMMdd').format(DateTime.now());
 
+    final body = SafeArea(
+      child: Column(
+        children: [
+          _buildHeader(isToday),
+          _buildDateNav(isToday),
+          Expanded(
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                          color: AppTheme.mutedTeal))
+                  : _buildMemoArea(),
+            ),
+          ),
+          _buildBottomBar(),
+        ],
+      ),
+    );
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -194,25 +311,31 @@ class _MemoScreenState extends State<MemoScreen>
       },
       child: Scaffold(
         backgroundColor: AppTheme.deepNavy,
-        body: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(isToday),
-              _buildDateNav(isToday),
-              Expanded(
-                child: SlideTransition(
-                  position: _slideAnimation,
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                              color: AppTheme.mutedTeal))
-                      : _buildMemoArea(),
-                ),
+        body: kIsWeb
+            // 웹: 스와이프 없음 (트랙패드 어설션 방지)
+            ? body
+            // 모바일: 좌우 (메모 날짜 이동) + 아래 (닫기) 스와이프
+            : GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  if (_hasUnsavedChanges) return; // 미저장 시 차단
+                  final dx = details.primaryVelocity ?? 0;
+                  if (dx < -300) {
+                    _swipeToMemoDate(1);  // 왼쪽 스와이프 → 다음 메모 날
+                  } else if (dx > 300) {
+                    _swipeToMemoDate(-1); // 오른쪽 스와이프 → 이전 메모 날
+                  }
+                },
+                onVerticalDragEnd: (details) {
+                  final dy = details.primaryVelocity ?? 0;
+                  if (dy > 500) {
+                    // 아래로 빠르게 스와이프 → 화면 닫기
+                    _confirmUnsavedChanges().then((ok) {
+                      if (ok && mounted) Navigator.pop(context);
+                    });
+                  }
+                },
+                child: body,
               ),
-              _buildBottomBar(),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -271,13 +394,34 @@ class _MemoScreenState extends State<MemoScreen>
   }
 
   Widget _buildDateNav(bool isToday) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return AnimatedBuilder(
+      animation: _flashAnimation,
+      builder: (context, child) {
+        // 반짝임: 배경색이 밝아졌다 돌아오는 효과
+        final flashOpacity = _flashAnimation.value;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: Color.lerp(
+              AppTheme.bgCard,
+              AppTheme.softIndigo.withOpacity(0.7),
+              flashOpacity,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: flashOpacity > 0.01
+                ? [
+                    BoxShadow(
+                      color: AppTheme.softIndigo.withOpacity(flashOpacity * 0.5),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    )
+                  ]
+                : null,
+          ),
+          child: child,
+        );
+      },
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
