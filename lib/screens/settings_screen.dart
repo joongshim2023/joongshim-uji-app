@@ -678,33 +678,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final memos = await _memoService.getMemosInRange(uid, start, end);
       StringBuffer buf = StringBuffer();
-      buf.writeln('날짜,메모');
 
       for (var memo in memos) {
         final date = memo['date'] as String;
-        // CSV 안전: 큰따옴표 이스케이프
-        final content = (memo['content'] as String? ?? '')
-            .replaceAll('"', '""')
-            .replaceAll('\n', ' ');
-        buf.writeln('$date,"$content"');
+        final content = (memo['content'] as String? ?? '').trim();
+        if (content.isEmpty) continue;
+        // 형식: [yyyy-MM-dd]\n\n내용\n\n
+        buf.writeln('[$date]');
+        buf.writeln();
+        buf.writeln(content);
+        buf.writeln();
       }
 
-      if (memos.isEmpty) {
+      if (buf.isEmpty) {
         buf.writeln('해당 기간에 메모가 없습니다.');
       }
 
-      // 웹: XFile.fromData (path_provider 미지원)
-      // 모바일: 실제 파일 저장 후 공유
-      final csvBytes = Uint8List.fromList(utf8.encode(buf.toString()));
-      final fileName = '중심유지 App 메모-$nowStr.csv';
+      final txtBytes = Uint8List.fromList(utf8.encode(buf.toString()));
+      final fileName = '중심유지 App 메모-$nowStr.txt';
       XFile xFile;
       if (kIsWeb) {
-        xFile = XFile.fromData(csvBytes, mimeType: 'text/csv', name: fileName);
+        xFile = XFile.fromData(txtBytes, mimeType: 'text/plain', name: fileName);
       } else {
         final dir = await getTemporaryDirectory();
         final filePath = '${dir.path}/$fileName';
-        await File(filePath).writeAsBytes(csvBytes);
-        xFile = XFile(filePath, mimeType: 'text/csv', name: fileName);
+        await File(filePath).writeAsBytes(txtBytes);
+        xFile = XFile(filePath, mimeType: 'text/plain', name: fileName);
       }
       await Share.shareXFiles([xFile], subject: '중심유지 App 메모');
     } catch (e) {
@@ -793,7 +792,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           }
                         },
                         child: Text(
-                          isMemo ? '메모 내보내기 (CSV)' : '기록 내보내기 (CSV)',
+                          isMemo ? '메모 내보내기 (TXT)' : '기록 내보내기 (CSV)',
                           style: const TextStyle(
                               color: AppTheme.mutedTeal,
                               fontWeight: FontWeight.bold),
@@ -944,7 +943,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () => _showExportPopup(isMemo: false)),
                 _buildListTile(
                     icon: Icons.note_outlined,
-                    title: "메모 내보내기 (CSV)",
+                    title: "메모 내보내기 (TXT)",
                     onTap: () => _showExportPopup(isMemo: true)),
                 _buildListTile(
                   icon: Icons.policy_outlined,

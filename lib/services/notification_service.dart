@@ -205,6 +205,11 @@ class NotificationService {
       debugPrint('[알림] 설정 동일하지만 예약 알람 0개 → 재등록 진행');
     }
     await prefs.setString(cacheKey, currentSettings);
+    // 개별 설정 저장 → onAppForegrounded()에서 재사용
+    await prefs.setInt('alarm_sh_$uid', startHour);
+    await prefs.setInt('alarm_eh_$uid', endHour);
+    await prefs.setInt('alarm_iv_$uid', intervalMinutes);
+    await prefs.setBool('alarm_on_$uid', alarmOn);
 
     await flutterLocalNotificationsPlugin.cancelAll();
     debugPrint('[알림] 기존 알람 전체 취소 및 스케줄 초기화 완료');
@@ -275,6 +280,43 @@ class NotificationService {
         'mode': canExact ? 'exact' : 'inexact',
         'isOvernight': isOvernight,
       },
+    );
+  }
+
+  // ────────────────────────────────────────────────────────
+  // 앱 포그라운드 복귀 처리
+  // ────────────────────────────────────────────────────────
+
+  /// 앱이 포그라운드로 복귀할 때 호출.
+  /// 이슈2(여러 알람 한꺼번에), 이슈3(앱 열면 알람) 해결:
+  ///  1. cancelAll() → iOS: pending + delivered 알림 모두 제거
+  ///                   Android: active(delivered) 알림 제거 + pending 취소
+  ///  2. SharedPreferences 캐시 초기화
+  ///  3. 현재 시간 기준으로 미래 알람만 신선하게 재등록
+  Future<void> onAppForegrounded() async {
+    if (kIsWeb) return;
+    final uid = _uid ?? 'unknown';
+    final prefs = await SharedPreferences.getInstance();
+
+    // 마지막으로 저장된 알람 설정 읽기
+    final startHour = prefs.getInt('alarm_sh_$uid') ?? 7;
+    final endHour = prefs.getInt('alarm_eh_$uid') ?? 24;
+    final intervalMinutes = prefs.getInt('alarm_iv_$uid') ?? 60;
+    final alarmOn = prefs.getBool('alarm_on_$uid') ?? true;
+
+    // 1. 쌓인 알림 전부 제거 (delivered + pending)
+    await flutterLocalNotificationsPlugin.cancelAll();
+    debugPrint('[알림] 포그라운드 복귀: 기존 알림 모두 제거 완료');
+
+    // 2. 캐시 삭제 → rescheduleAlarms가 강제 재등록하도록
+    await prefs.remove('alarm_settings_cache_$uid');
+
+    // 3. 현재 시간 기준 미래 슬롯만 신선하게 재등록
+    await rescheduleAlarms(
+      startHour: startHour,
+      endHour: endHour,
+      intervalMinutes: intervalMinutes,
+      alarmOn: alarmOn,
     );
   }
 

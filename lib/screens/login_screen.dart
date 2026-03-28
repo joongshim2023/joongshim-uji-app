@@ -253,7 +253,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/icon.png', width: 120, height: 120),
+              Image.asset('assets/images/logo.png', width: 120, height: 120),
               const SizedBox(height: 16),
               const Text("중심 유지 App",
                   style: TextStyle(

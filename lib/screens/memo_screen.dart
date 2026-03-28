@@ -9,11 +9,13 @@ import '../services/memo_service.dart';
 class MemoScreen extends StatefulWidget {
   final DateTime initialDate;
   final String userId;
+  final bool isTab; // true: 탭으로 사용, false: push 모달로 사용
 
   const MemoScreen({
     Key? key,
     required this.initialDate,
     required this.userId,
+    this.isTab = false,
   }) : super(key: key);
 
   @override
@@ -301,6 +303,28 @@ class _MemoScreenState extends State<MemoScreen>
       ),
     );
 
+    // 탭 모드 vs 모달 모드
+    if (widget.isTab) {
+      // 탭: PopScope/뒤로가기 다이얼로그 없이 바로 Scaffold
+      return Scaffold(
+        backgroundColor: AppTheme.deepNavy,
+        body: kIsWeb
+            ? body
+            : GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  if (_hasUnsavedChanges) return;
+                  final dx = details.primaryVelocity ?? 0;
+                  if (dx < -300) {
+                    _swipeToMemoDate(1);
+                  } else if (dx > 300) {
+                    _swipeToMemoDate(-1);
+                  }
+                },
+                child: body,
+              ),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -312,23 +336,20 @@ class _MemoScreenState extends State<MemoScreen>
       child: Scaffold(
         backgroundColor: AppTheme.deepNavy,
         body: kIsWeb
-            // 웹: 스와이프 없음 (트랙패드 어설션 방지)
             ? body
-            // 모바일: 좌우 (메모 날짜 이동) + 아래 (닫기) 스와이프
             : GestureDetector(
                 onHorizontalDragEnd: (details) {
-                  if (_hasUnsavedChanges) return; // 미저장 시 차단
+                  if (_hasUnsavedChanges) return;
                   final dx = details.primaryVelocity ?? 0;
                   if (dx < -300) {
-                    _swipeToMemoDate(1);  // 왼쪽 스와이프 → 다음 메모 날
+                    _swipeToMemoDate(1);
                   } else if (dx > 300) {
-                    _swipeToMemoDate(-1); // 오른쪽 스와이프 → 이전 메모 날
+                    _swipeToMemoDate(-1);
                   }
                 },
                 onVerticalDragEnd: (details) {
                   final dy = details.primaryVelocity ?? 0;
                   if (dy > 500) {
-                    // 아래로 빠르게 스와이프 → 화면 닫기
                     _confirmUnsavedChanges().then((ok) {
                       if (ok && mounted) Navigator.pop(context);
                     });
@@ -342,34 +363,35 @@ class _MemoScreenState extends State<MemoScreen>
 
   Widget _buildHeader(bool isToday) {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.all(16.0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          GestureDetector(
-            onTap: () async {
-              if (await _confirmUnsavedChanges()) {
-                if (mounted) Navigator.pop(context);
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppTheme.bgCard,
-                borderRadius: BorderRadius.circular(12),
+          // 탭 모드에서는 뒤로가기 버튼 숨기기
+          if (!widget.isTab) ...[
+            GestureDetector(
+              onTap: () async {
+                if (await _confirmUnsavedChanges()) {
+                  if (mounted) Navigator.pop(context);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCard,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.arrow_back_ios_new,
+                    color: AppTheme.textWhite, size: 18),
               ),
-              child: const Icon(Icons.arrow_back_ios_new,
-                  color: AppTheme.textWhite, size: 18),
             ),
-          ),
-          const SizedBox(width: 12),
-          const Icon(Icons.edit_note_rounded,
-              color: AppTheme.mutedTeal, size: 24),
-          const SizedBox(width: 8),
+            const SizedBox(width: 12),
+          ],
+          // 아이콘 제거, 설정/통계 화면과 동일한 평체 헤더
           const Text(
             '메모',
             style: TextStyle(
-                fontSize: 22,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textWhite),
           ),
@@ -397,27 +419,15 @@ class _MemoScreenState extends State<MemoScreen>
     return AnimatedBuilder(
       animation: _flashAnimation,
       builder: (context, child) {
-        // 반짝임: 배경색이 밝아졌다 돌아오는 효과
         final flashOpacity = _flashAnimation.value;
+        // 박스 없이 끼깔한 배경 위에. 이동 시에만 반짝임 강조표시.
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           decoration: BoxDecoration(
-            color: Color.lerp(
-              AppTheme.bgCard,
-              AppTheme.softIndigo.withOpacity(0.7),
-              flashOpacity,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: flashOpacity > 0.01
-                ? [
-                    BoxShadow(
-                      color: AppTheme.softIndigo.withOpacity(flashOpacity * 0.5),
-                      blurRadius: 12,
-                      spreadRadius: 2,
-                    )
-                  ]
-                : null,
+            // 반짜임 시 indigo 허로, 평상 시 완전 투명
+            color: AppTheme.softIndigo.withOpacity(flashOpacity * 0.18),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: child,
         );

@@ -8,7 +8,8 @@ import '../services/energy_service.dart';
 import '../services/memo_service.dart';
 
 class TrendScreen extends StatefulWidget {
-  const TrendScreen({Key? key}) : super(key: key);
+  final void Function(DateTime date)? onDateSelected;
+  const TrendScreen({Key? key, this.onDateSelected}) : super(key: key);
 
   @override
   _TrendScreenState createState() => _TrendScreenState();
@@ -93,17 +94,12 @@ class _TrendScreenState extends State<TrendScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("에너지감각 유지 통계 분석",
+                const Text("유지 통계",
                     style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textWhite)),
-                const SizedBox(height: 8),
-                const Text(
-                  "기간별 에너지감각 유지 비중 추이를 확인하세요.",
-                  style: TextStyle(color: AppTheme.textGray, fontSize: 14),
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 Center(
                   child: Container(
                     decoration: BoxDecoration(
@@ -213,7 +209,12 @@ class _TrendScreenState extends State<TrendScreen> {
                     DateFormat('yyyyMMdd').format(DateTime.now());
                 bool hasMemo = _memoDates.contains(dateKey);
 
-                return Container(
+                return GestureDetector(
+                  onTap: () {
+                    // 수정 5-2: 캘린더 날짜 클릭 → 홈 탭으로 이동
+                    widget.onDateSelected?.call(d);
+                  },
+                  child: Container(
                   decoration: BoxDecoration(
                     // teal 틴트 = 메모 있는 날짜, 기본 = bgCard
                     color: hasMemo
@@ -245,6 +246,7 @@ class _TrendScreenState extends State<TrendScreen> {
                         ),
                     ],
                   ),
+                ),
                 );
               },
             ),
@@ -254,7 +256,7 @@ class _TrendScreenState extends State<TrendScreen> {
           const Padding(
             padding: EdgeInsets.only(top: 8.0, bottom: 4.0),
             child: Text(
-              '메모가 있는 날은 배경색이 다릅니다.',
+              '메모가 있는 날은 배경색이 다릅니다.\n날짜를 클릭하면 기록을 볼 수 있습니다.',
               style: TextStyle(
                 fontSize: 11,
                 color: AppTheme.textGray,

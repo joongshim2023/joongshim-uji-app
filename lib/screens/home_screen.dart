@@ -14,7 +14,10 @@ import '../widgets/marquee_text.dart';
 import 'memo_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  final DateTime? initialDate;
+  final void Function(DateTime date)? onOpenMemo;
+
+  const HomeScreen({Key? key, this.initialDate, this.onOpenMemo}) : super(key: key);
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -24,7 +27,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DateTime _now = DateTime.now();
   bool _isSaveError = false;
   late DateTime _selectedDate;
-  int _selectedHour = DateTime.now().hour;
+  // null = 미선택 (과거 날짜). 오늘은 현재 시간 초기값.
+  int? _selectedHour;
   Timer? _timer;
 
   final AuthService _authService = AuthService();
@@ -83,7 +87,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadDailyPhrase();
-    _selectedDate = DateTime(_now.year, _now.month, _now.day);
+    // initialDate: 캘린더에서 날짜 지정 이동 지원
+    _selectedDate = widget.initialDate != null
+        ? DateTime(widget.initialDate!.year, widget.initialDate!.month, widget.initialDate!.day)
+        : DateTime(_now.year, _now.month, _now.day);
+    // 오늘이면 현재 시간 선택, 과거이면 미선택
+    _selectedHour = _isSelectedDateToday ? _now.hour : null;
     _timer = Timer.periodic(const Duration(minutes: 1), (time) {
       if (mounted) setState(() => _now = DateTime.now());
     });
@@ -133,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       bool isToday = DateFormat('yyyyMMdd').format(_selectedDate) ==
           DateFormat('yyyyMMdd').format(_now);
-      int targetHour = isToday ? _now.hour : _selectedHour;
+      int targetHour = isToday ? _now.hour : (_selectedHour ?? _now.hour);
 
       // 각 TimelineRow의 대략적인 높이 (vertical margin 2*2 + padding 8*2 + content ≈ 46px)
       const double rowHeight = 46.0;
@@ -186,11 +195,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // 선택된 시간이 활동 시간인지 (다음날 구간 고려)
   bool get _isSelectedHourActive {
-    if (_isFutureTime(_selectedHour, _isNextDaySelected)) return false;
+    final h = _selectedHour;
+    if (h == null) return false;
+    if (_isFutureTime(h, _isNextDaySelected)) return false;
     if (_isNextDaySelected) return true; // 다음날 구간은 항상 활성
-    if (_isOvernightMode) return _selectedHour >= _localStartHour;
+    if (_isOvernightMode) return h >= _localStartHour;
     int end = _localEndHour == 24 ? 23 : _localEndHour;
-    return _selectedHour >= _localStartHour && _selectedHour <= end;
+    return h >= _localStartHour && h <= end;
   }
 
   bool _isActive(int hour) {
@@ -217,6 +228,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
       _flushPending();
+    }
+    // 이슈2(알람 한꺼번에), 이슈3(앱 열면 알람) 해결:
+    // 앱이 포그라운드로 복귀할 때 쌓인 알림 제거 + 신선한 알람 재등록
+    if (state == AppLifecycleState.resumed) {
+      NotificationService().onAppForegrounded();
+      _checkMemo(); // 메모 상태도 갱신
     }
   }
 
@@ -262,15 +279,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _updateEnergy(int minutes) {
-    if (uid == null) return;
+    if (uid == null || _selectedHour == null) return;
 
     if (_pendingHour != null && _pendingHour != _selectedHour) {
       _flushPending();
     }
 
     setState(() {
-      _optimisticRecords[_selectedHour.toString().padLeft(2, '0')] = minutes;
-      _isSaveError = false; // Reset to blue optimistically
+      _optimisticRecords[_selectedHour!.toString().padLeft(2, '0')] = minutes;
+      _isSaveError = false;
     });
 
     _pendingHour = _selectedHour;
@@ -298,17 +315,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// 오늘 여부 getter
+  bool get _isSelectedDateToday =>
+      DateFormat('yyyyMMdd').format(_selectedDate) ==
+          DateFormat('yyyyMMdd').format(_now);
+
   void _changeDate(int delta) {
     _flushPending();
     setState(() {
       _optimisticRecords.clear();
       _selectedDate = _selectedDate.add(Duration(days: delta));
-      if (DateFormat('yyyyMMdd').format(_selectedDate) ==
-          DateFormat('yyyyMMdd').format(_now)) {
-        _selectedHour = _now.hour;
-      } else {
-        _selectedHour = 12;
-      }
+      // 오늘 → 현재 시간, 과거 → 미선택(null)
+      _selectedHour = _isSelectedDateToday ? _now.hour : null;
       _isNextDaySelected = false;
       _hasScrolledToCurrentTime = false;
     });
@@ -644,21 +662,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_dailyPhrase == null || _dailyPhrase!.isEmpty) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(top: 6),
+      // 수정3: 상하 패딩 충분히 확보하여 글자 잘림 방지
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
         color: AppTheme.softIndigo.withOpacity(0.15),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.softIndigo.withOpacity(0.3)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Icon(Icons.format_quote_rounded, color: AppTheme.softIndigo, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: MarqueeText(
               text: _dailyPhrase!,
-              style: const TextStyle(color: AppTheme.textWhite, fontSize: 13, height: 1.2),
+              style: const TextStyle(
+                color: AppTheme.textWhite,
+                fontSize: 13,
+                height: 1.5,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -670,19 +694,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.all(16.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.bolt, color: AppTheme.mutedTeal),
-          const SizedBox(width: 8),
-          const Text('중심 유지 App',
+          const Text('중심 유지',
               style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textWhite)),
           const Spacer(),
-          // 메모 아이콘: 메모 있으면 accent color, 없으면 흐린 회색
+          // 수정5-1: 메모 아이콘 → 메모 탭으로 이동 (onOpenMemo 콜백 사용)
           IconButton(
             icon: Icon(
               Icons.edit_note_rounded,
@@ -691,34 +712,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   : AppTheme.textGray.withOpacity(0.4),
               size: 28,
             ),
-            onPressed: () async {
-              final u = uid;
-              if (u == null) return;
-              await Navigator.push(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, animation, secondaryAnimation) =>
-                      MemoScreen(
-                    initialDate: _selectedDate,
-                    userId: u,
-                  ),
-                  transitionsBuilder:
-                      (_, animation, secondaryAnimation, child) {
-                    const begin = Offset(0.0, 1.0);
-                    const end = Offset.zero;
-                    const curve = Curves.easeOutCubic;
-                    final tween = Tween(begin: begin, end: end)
-                        .chain(CurveTween(curve: curve));
-                    return SlideTransition(
-                      position: animation.drive(tween),
-                      child: child,
-                    );
-                  },
-                  transitionDuration: const Duration(milliseconds: 350),
-                ),
-              );
-              // 메모 화면에서 돌아온 후 메모 상태 갱신
-              _checkMemo();
+            onPressed: () {
+              widget.onOpenMemo?.call(_selectedDate);
             },
           ),
         ],
@@ -897,9 +892,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Map<String, dynamic> mergedRecords = Map.from(records);
     _optimisticRecords.forEach((key, val) => mergedRecords[key] = val);
 
+    final h = _selectedHour;
+
+    // 미선택 상태
+    if (h == null) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 8, 16),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+            color: AppTheme.bgCard, borderRadius: BorderRadius.circular(20)),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.touch_app_outlined, color: AppTheme.textGray, size: 32),
+              SizedBox(height: 12),
+              Text(
+                '시간을\n선택하세요',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textGray, fontSize: 13, height: 1.6),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     int currentRecord =
-        ((mergedRecords[_selectedHour.toString().padLeft(2, '0')] ?? 0) as num)
-            .toInt();
+        ((mergedRecords[h.toString().padLeft(2, '0')] ?? 0) as num).toInt();
     int pct = (currentRecord / 60 * 100).toInt();
     bool isActiveWindow = _isSelectedHourActive;
 
@@ -917,15 +937,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.chevron_left,
                       color: AppTheme.mutedTeal, size: 20),
-                  onPressed: _selectedHour > 0
+                  onPressed: h > 0
                       ? () {
                           _flushPending();
-                          setState(() => _selectedHour--);
+                          setState(() => _selectedHour = h - 1);
                         }
                       : null),
               Column(
                 children: [
-                  Text(_selectedHour.toString().padLeft(2, '0') + ':00',
+                  Text(h.toString().padLeft(2, '0') + ':00',
                       style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -939,10 +959,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.chevron_right,
                       color: AppTheme.mutedTeal, size: 20),
-                  onPressed: _selectedHour < 23
+                  onPressed: h < 23
                       ? () {
                           _flushPending();
-                          setState(() => _selectedHour++);
+                          setState(() => _selectedHour = h + 1);
                         }
                       : null),
             ],
@@ -961,7 +981,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ? AppTheme.activeGreen
                           : AppTheme.textGray.withOpacity(0.5))),
               const SizedBox(width: 4),
-              Text('$currentRecord분',
+              Text('${currentRecord}분',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -1069,10 +1089,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Map<String, dynamic> mergedRecords = Map.from(records);
     _optimisticRecords.forEach((key, val) => mergedRecords[key] = val);
 
+    final h = _selectedHour;
+
+    // 미선택 상태 (과거 날짜 기본값)
+    if (h == null) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 8, 16),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+            color: AppTheme.bgCard, borderRadius: BorderRadius.circular(20)),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.touch_app_outlined, color: AppTheme.textGray, size: 32),
+              SizedBox(height: 12),
+              Text(
+                '시간을\n선택하세요',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textGray, fontSize: 13, height: 1.6),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     int currentRecord =
-        ((mergedRecords[_selectedHour.toString().padLeft(2, '0')] ?? 0) as num)
-            .toInt();
-    bool isActiveWindow = _isSelectedHourActive; // 다음날 구간 고려
+        ((mergedRecords[h.toString().padLeft(2, '0')] ?? 0) as num).toInt();
+    bool isActiveWindow = _isSelectedHourActive;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 8, 16),
@@ -1087,15 +1132,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               IconButton(
                   icon:
                       const Icon(Icons.chevron_left, color: AppTheme.mutedTeal),
-                  onPressed: _selectedHour > 0
+                  onPressed: h > 0
                       ? () {
                           _flushPending();
-                          setState(() => _selectedHour--);
+                          setState(() => _selectedHour = h - 1);
                         }
                       : null),
               Column(
                 children: [
-                  Text(_selectedHour.toString().padLeft(2, '0') + ':00',
+                  Text(h.toString().padLeft(2, '0') + ':00',
                       style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -1108,10 +1153,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               IconButton(
                   icon: const Icon(Icons.chevron_right,
                       color: AppTheme.mutedTeal),
-                  onPressed: _selectedHour < 23
+                  onPressed: h < 23
                       ? () {
                           _flushPending();
-                          setState(() => _selectedHour++);
+                          setState(() => _selectedHour = h + 1);
                         }
                       : null),
             ],

@@ -9,6 +9,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 import 'screens/trend_screen.dart';
+import 'screens/memo_screen.dart';
 import 'services/notification_service.dart';
 import 'services/update_service.dart';
 import 'firebase_options.dart';
@@ -25,12 +26,9 @@ void main() async {
 
   // Crashlytics 설정 (웹 제외)
   if (!kIsWeb) {
-    // Flutter 프레임워크 에러 → Crashlytics
     FlutterError.onError = (errorDetails) {
       FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
     };
-    // 비동기 Zone 에러 → Crashlytics
-    // (아래 runZonedGuarded에서 처리)
   }
 
   try {
@@ -43,7 +41,7 @@ void main() async {
     debugPrint('Notification Engine Error: $e');
   }
 
-  // google_sign_in 7.x: Android/iOS에서만 초기화 (웹에서는 불필요)
+  // google_sign_in 7.x: Android/iOS에서만 초기화
   if (!kIsWeb) {
     await GoogleSignIn.instance.initialize(
       serverClientId:
@@ -83,17 +81,32 @@ class MainNavigator extends StatefulWidget {
   const MainNavigator({Key? key}) : super(key: key);
 
   @override
-  _MainNavigatorState createState() => _MainNavigatorState();
+  MainNavigatorState createState() => MainNavigatorState();
 }
 
-class _MainNavigatorState extends State<MainNavigator> {
+class MainNavigatorState extends State<MainNavigator> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const TrendScreen(),
-    const SettingsScreen(),
-  ];
+  // 메모 탭에 전달할 날짜 (홈/캘린더에서 날짜 지정해서 이동할 때 사용)
+  DateTime _memoDate = DateTime.now();
+  // 홈 탭에 전달할 날짜 (캘린더에서 날짜 클릭 시)
+  DateTime? _homeInitialDate;
+
+  /// 홈 탭 → 메모 탭: 특정 날짜의 메모로 이동
+  void openMemoTab(DateTime date) {
+    setState(() {
+      _memoDate = date;
+      _currentIndex = 1;
+    });
+  }
+
+  /// 캘린더 → 홈 탭: 특정 날짜의 홈 화면으로 이동
+  void openHomeTab(DateTime date) {
+    setState(() {
+      _homeInitialDate = date;
+      _currentIndex = 0;
+    });
+  }
 
   @override
   void initState() {
@@ -204,21 +217,46 @@ class _MainNavigatorState extends State<MainNavigator> {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    final List<Widget> screens = [
+      HomeScreen(
+        key: ValueKey('home_${_homeInitialDate?.toIso8601String() ?? "default"}'),
+        initialDate: _homeInitialDate,
+        onOpenMemo: openMemoTab,
+      ),
+      MemoScreen(
+        key: ValueKey('memo_${_memoDate.toIso8601String()}'),
+        initialDate: _memoDate,
+        userId: uid,
+        isTab: true,
+      ),
+      TrendScreen(onDateSelected: openHomeTab),
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: screens,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               activeIcon: Icon(Icons.home),
-              label: '홈'),
-          BottomNavigationBarItem(
+              label: '유지'),
+          const BottomNavigationBarItem(
+              icon: Icon(Icons.edit_note_outlined),
+              activeIcon: Icon(Icons.edit_note_rounded),
+              label: '메모'),
+          const BottomNavigationBarItem(
               icon: Icon(Icons.insights_outlined),
               activeIcon: Icon(Icons.insights),
               label: '통계'),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
               icon: Icon(Icons.settings_outlined),
               activeIcon: Icon(Icons.settings),
               label: '설정'),
