@@ -420,12 +420,10 @@ class _MemoScreenState extends State<MemoScreen>
       animation: _flashAnimation,
       builder: (context, child) {
         final flashOpacity = _flashAnimation.value;
-        // 박스 없이 끼깔한 배경 위에. 이동 시에만 반짝임 강조표시.
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           decoration: BoxDecoration(
-            // 반짜임 시 indigo 허로, 평상 시 완전 투명
             color: AppTheme.softIndigo.withOpacity(flashOpacity * 0.18),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -433,39 +431,142 @@ class _MemoScreenState extends State<MemoScreen>
         );
       },
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // 이전 날 (날짜에 바로 붙음)
           IconButton(
             icon: const Icon(Icons.chevron_left,
                 color: AppTheme.textWhite),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
             onPressed: () => _changeDate(-1),
           ),
-          Column(
-            children: [
-              Text(
-                DateFormat('yyyy. MM. dd').format(_selectedDate),
-                style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textWhite),
+          const SizedBox(width: 4),
+          // 날짜 텍스트 (탭 → 달력 팝업)
+          InkWell(
+            onTap: () async {
+              if (!await _confirmUnsavedChanges()) return;
+              final now = DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDate,
+                firstDate: now.subtract(const Duration(days: 365)),
+                lastDate: now,
+                builder: (context, child) {
+                  return Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: const ColorScheme.dark(
+                        primary: AppTheme.mutedTeal,
+                        onPrimary: AppTheme.deepNavy,
+                        surface: AppTheme.bgCard,
+                        onSurface: AppTheme.textWhite,
+                      ),
+                    ),
+                    child: child!,
+                  );
+                },
+              );
+              if (picked != null && mounted) {
+                final delta = picked.isAfter(_selectedDate) ? 1 : -1;
+                setState(() {
+                  _slideAnimation = Tween<Offset>(
+                    begin: Offset(delta.toDouble(), 0),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                    parent: _slideController,
+                    curve: Curves.easeOutCubic,
+                  ));
+                  _selectedDate = picked;
+                });
+                _slideController.forward(from: 0.0);
+                _flashDateNav();
+                await _loadMemo();
+              }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Column(
+                children: [
+                  Text(
+                    DateFormat('yyyy. MM. dd').format(_selectedDate),
+                    style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textWhite),
+                  ),
+                  Text(
+                    isToday ? '오늘' : '과거 기록',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: isToday
+                            ? AppTheme.activeGreen
+                            : AppTheme.softIndigo),
+                  ),
+                ],
               ),
-              Text(
-                isToday ? '오늘' : '과거 기록',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: isToday
-                        ? AppTheme.activeGreen
-                        : AppTheme.softIndigo),
-              ),
-            ],
+            ),
           ),
+          const SizedBox(width: 4),
+          // 다음 날 (날짜에 바로 붙음)
           IconButton(
             icon: Icon(Icons.chevron_right,
                 color: isToday
                     ? AppTheme.textGray.withOpacity(0.3)
                     : AppTheme.textWhite),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
             onPressed: isToday ? null : () => _changeDate(1),
           ),
+          // 오늘로 이동 버튼 (과거 날짜일 때만 우측에 표시)
+          if (!isToday) ...[
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: () async {
+                if (!await _confirmUnsavedChanges()) return;
+                final today = DateTime.now();
+                setState(() {
+                  _slideAnimation = Tween<Offset>(
+                    begin: const Offset(1.0, 0),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                    parent: _slideController,
+                    curve: Curves.easeOutCubic,
+                  ));
+                  _selectedDate = DateTime(today.year, today.month, today.day);
+                });
+                _slideController.forward(from: 0.0);
+                _flashDateNav();
+                await _loadMemo();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppTheme.mutedTeal.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppTheme.mutedTeal.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.keyboard_double_arrow_right,
+                        color: AppTheme.mutedTeal, size: 16),
+                    SizedBox(width: 2),
+                    Text('오늘',
+                        style: TextStyle(
+                            color: AppTheme.mutedTeal,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

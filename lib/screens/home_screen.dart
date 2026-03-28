@@ -727,12 +727,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // 이전 날 (날짜에 바로 붙음)
           IconButton(
             icon: const Icon(Icons.chevron_left, color: AppTheme.textWhite),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
             onPressed: () => _changeDate(-1),
           ),
+          const SizedBox(width: 4),
+          // 날짜 텍스트 (탭하면 달력 피커)
           InkWell(
             onTap: () async {
               DateTime? picked = await showDatePicker(
@@ -776,12 +782,60 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
           ),
+          const SizedBox(width: 4),
+          // 다음 날 (날짜에 바로 붙음)
           IconButton(
-              icon: Icon(Icons.chevron_right,
-                  color: isToday
-                      ? AppTheme.textGray.withOpacity(0.3)
-                      : AppTheme.textWhite),
-              onPressed: isToday ? null : () => _changeDate(1)),
+            icon: Icon(Icons.chevron_right,
+                color: isToday
+                    ? AppTheme.textGray.withOpacity(0.3)
+                    : AppTheme.textWhite),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
+            onPressed: isToday ? null : () => _changeDate(1),
+          ),
+          // 오늘로 이동 버튼 (과거 날짜일 때만 우측 끝에 표시)
+          if (!isToday) ...[
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: () {
+                _flushPending();
+                setState(() {
+                  _optimisticRecords.clear();
+                  _selectedDate = DateTime(_now.year, _now.month, _now.day);
+                  _selectedHour = _now.hour;
+                  _isNextDaySelected = false;
+                  _hasScrolledToCurrentTime = false;
+                });
+                _scrollToCurrentTime();
+                _checkMemo();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppTheme.mutedTeal.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppTheme.mutedTeal.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.keyboard_double_arrow_right,
+                        color: AppTheme.mutedTeal, size: 16),
+                    SizedBox(width: 2),
+                    Text('오늘',
+                        style: TextStyle(
+                            color: AppTheme.mutedTeal,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
