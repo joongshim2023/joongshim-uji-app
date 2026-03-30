@@ -388,9 +388,9 @@ class _MemoScreenState extends State<MemoScreen>
             const SizedBox(width: 12),
           ],
           // 아이콘 제거, 설정/통계 화면과 동일한 평체 헤더
-          const Text(
-            '메모',
-            style: TextStyle(
+          Text(
+            'Memo',
+            style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textWhite),
@@ -497,7 +497,7 @@ class _MemoScreenState extends State<MemoScreen>
                         color: AppTheme.textWhite),
                   ),
                   Text(
-                    isToday ? '오늘' : '과거 기록',
+                    isToday ? 'Today' : '',
                     style: TextStyle(
                         fontSize: 12,
                         color: isToday
@@ -557,7 +557,7 @@ class _MemoScreenState extends State<MemoScreen>
                     Icon(Icons.keyboard_double_arrow_right,
                         color: AppTheme.mutedTeal, size: 16),
                     SizedBox(width: 2),
-                    Text('오늘',
+                    Text('Today',
                         style: TextStyle(
                             color: AppTheme.mutedTeal,
                             fontSize: 12,
@@ -593,7 +593,7 @@ class _MemoScreenState extends State<MemoScreen>
                 height: 1.7,
               ),
               decoration: InputDecoration(
-                hintText: '이 날의 메모를 남겨보세요...',
+                hintText: 'Leave a note for this day.',
                 hintStyle: TextStyle(
                     color: AppTheme.textGray.withOpacity(0.5),
                     fontSize: 15),
@@ -648,7 +648,7 @@ class _MemoScreenState extends State<MemoScreen>
                   child: CircularProgressIndicator(
                       color: Colors.white, strokeWidth: 2))
               : const Text(
-                  '저장하기',
+                  'Save',
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

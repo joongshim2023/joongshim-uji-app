@@ -14,6 +14,9 @@ import '../services/auth_service.dart';
 import '../services/energy_service.dart';
 import '../services/memo_service.dart';
 import '../services/notification_service.dart';
+import 'package:provider/provider.dart';
+import '../services/language_provider.dart';
+import '../theme/app_strings.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -49,7 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('확인',
+            child: const Text('OK',
                 style: TextStyle(
                     color: AppTheme.mutedTeal, fontWeight: FontWeight.bold)),
           ),
@@ -81,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('확인',
+            child: const Text('OK',
                 style: TextStyle(
                     color: AppTheme.mutedTeal, fontWeight: FontWeight.bold)),
           ),
@@ -173,7 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             bool isOvernight = isEndHour && tempVal < _startHour;
             return AlertDialog(
                 backgroundColor: AppTheme.bgCard,
-                title: Text(title,
+                title: Text(AppStrings.tr(context, title),
                     style: const TextStyle(color: AppTheme.textWhite)),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -184,31 +187,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: const TextStyle(color: AppTheme.activeGreen),
                       items: (() {
                         if (!isEndHour) {
-                          // 기상시간: 0시 ~ startUpperBound시
+                          // wake time: 0 ~ startUpperBound
                           return List.generate(
                             startUpperBound + 1,
                             (i) => i,
                           ).map((h) => DropdownMenuItem(
                                 value: h,
-                                child: Text('$h시'),
+                                child: Text('$h:00'),
                               )).toList();
                         } else {
-                          // 취침시간: 기상시간시 ~ 24시(자정) + 1시(다음날) ~
-                          // (기상시간-1)시(다음날)
                           final sameDay = List.generate(
                               max - _startHour + 1, (i) => i + _startHour);
-                          // 다음날: 1시 ~ (_startHour-1)시 (0시=24시=자정이므로 skip)
                           final nextDay = _startHour > 0
                               ? List.generate(_startHour - 1, (i) => i + 1)
                               : <int>[];
                           return [
                             ...sameDay.map((h) => DropdownMenuItem(
                                   value: h,
-                                  child: Text(h == 24 ? '24시(자정)' : '$h시'),
+                                  child: Text(h == 24 ? '12 am (midnight)' : '$h:00'),
                                 )),
                             ...nextDay.map((h) => DropdownMenuItem(
                                   value: h,
-                                  child: Text('$h시(다음날)'),
+                                  child: Text('$h (Next)'),
                                 )),
                           ];
                         }
@@ -238,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  '기상 $_startHour시 ~ 다음날 새벽 ${tempVal}시까지 활동 시간으로 설정됩니다.',
+                                  '${AppStrings.tr(context, '기상 시간')}: $_startHour:00 ~ ${AppStrings.tr(context, '취침 시간')}: ${tempVal}:00 (${AppStrings.tr(context, '다음날')})',
                                   style: const TextStyle(
                                       color: AppTheme.softIndigo, fontSize: 11),
                                 ),
@@ -252,14 +252,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('취소',
+                      child: const Text('Cancel',
                           style: TextStyle(color: AppTheme.textGray))),
                   TextButton(
                       onPressed: () {
                         onSelected(tempVal);
                         Navigator.pop(context);
                       },
-                      child: const Text('저장',
+                      child: const Text('Save',
                           style: TextStyle(color: AppTheme.mutedTeal))),
                 ]);
           });
@@ -271,11 +271,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         context: context,
         builder: (_) => AlertDialog(
             backgroundColor: AppTheme.bgCard,
-            title: const Text('알림 주기 선택',
+            title: const Text('Select Reminder Interval',
                 style: TextStyle(color: AppTheme.textWhite)),
             content: Column(mainAxisSize: MainAxisSize.min, children: [
               ListTile(
-                title: const Text('30분마다 알림',
+                title: const Text('Every 30 min',
                     style: TextStyle(color: AppTheme.textWhite)),
                 onTap: () {
                   setState(() => _alarmInterval = 30);
@@ -284,7 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               ListTile(
-                title: const Text('60분마다 알림',
+                title: const Text('Every 60 min',
                     style: TextStyle(color: AppTheme.textWhite)),
                 onTap: () {
                   setState(() => _alarmInterval = 60);
@@ -333,17 +333,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         context: context,
         builder: (dialogContext) => AlertDialog(
               backgroundColor: AppTheme.bgCard,
-              title: const Text('프로필',
+              title: const Text('Profile',
                   style: TextStyle(color: AppTheme.textWhite)),
               content: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('현재 연동된 이메일 계정',
-                        style:
-                            TextStyle(color: AppTheme.textGray, fontSize: 12)),
+                    const Text('Currently linked email account',
+                        style: TextStyle(color: AppTheme.textGray, fontSize: 12)),
                     const SizedBox(height: 8),
-                    Text(email ?? '알 수 없는 계정',
+                    Text(email ?? 'Unknown account',
                         style: const TextStyle(
                             color: AppTheme.textWhite,
                             fontSize: 16,
@@ -358,16 +357,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (email != null) {
                             try {
                               await _auth.sendPasswordReset(email);
-                              Navigator.pop(dialogContext);
-                              _showInfoDialog('이메일 발송 완료',
-                                  '비밀번호 변경 링크가 $email 으로 발송되었습니다.\n메일함을 확인해주세요.');
+                                Navigator.pop(dialogContext);
+                              _showInfoDialog(AppStrings.tr(context, 'Email Sent'),
+                                  AppStrings.tr(context, 'A password reset link has been sent to') + ' $email.\n' + AppStrings.tr(context, 'Please check your inbox.'));
                             } catch (e) {
                               Navigator.pop(dialogContext);
-                              _showErrorDialog('발송 실패', '오류가 발생했습니다.\n$e');
+                              _showErrorDialog(AppStrings.tr(context, 'Failed'), AppStrings.tr(context, 'An error occurred.') + '\n$e');
                             }
                           }
                         },
-                        child: const Text('이메일로 비밀번호 재설정 링크 받기',
+                        child: const Text('Get password reset link via email',
                             style: TextStyle(
                                 color: AppTheme.deepNavy,
                                 fontWeight: FontWeight.bold)),
@@ -382,7 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _showDeleteAccountDialog();
                       },
                       child: const Text(
-                        '계정 삭제',
+                        'Delete Account',
                         style: TextStyle(
                           color: Colors.redAccent,
                           fontSize: 14,
@@ -394,6 +393,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ]),
             ));
+  }
+
+  void _showLanguagePicker() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        title: Text(AppStrings.tr(context, '언어 (Language)'), style: const TextStyle(color: AppTheme.textWhite)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('Korean', style: TextStyle(color: AppTheme.textWhite)),
+              onTap: () {
+                Provider.of<LanguageProvider>(context, listen: false).changeLanguage('ko');
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text('English', style: TextStyle(color: AppTheme.textWhite)),
+              onTap: () {
+                Provider.of<LanguageProvider>(context, listen: false).changeLanguage('en');
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 계정 삭제 플로우:
@@ -416,10 +444,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.warning_amber_rounded,
-                color: Colors.redAccent, size: 24),
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
             SizedBox(width: 8),
-            Text('계정 삭제',
+            Text('Delete Account',
                 style: TextStyle(
                     color: Colors.redAccent,
                     fontSize: 18,
@@ -427,18 +454,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         content: const Text(
-          '계정을 삭제하면 모든 기록 데이터(daily_logs, 알람 기록, 설정)가 영구적으로 삭제됩니다.\n\n이 작업은 되돌릴 수 없습니다.',
+          'Deleting your account will permanently remove all your data (logs, settings).\n\nThis cannot be undone.',
           style: TextStyle(color: AppTheme.textGray, fontSize: 14, height: 1.6),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소', style: TextStyle(color: AppTheme.textGray)),
+            child: Text(AppStrings.tr(context, 'Cancel'), style: const TextStyle(color: AppTheme.textGray)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('삭제 진행',
-                style: TextStyle(
+            child: Text(AppStrings.tr(context, 'Delete'),
+                style: const TextStyle(
                     color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -459,12 +486,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             backgroundColor: AppTheme.bgCard,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('비밀번호 확인',
+            title: const Text('Confirm Password',
                 style: TextStyle(color: AppTheme.textWhite)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('계정 삭제를 위해 현재 비밀번호를 입력해주세요.',
+                const Text('Please enter your current password to delete your account.',
                     style: TextStyle(color: AppTheme.textGray, fontSize: 14)),
                 const SizedBox(height: 16),
                 TextField(
@@ -473,7 +500,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   autofocus: true,
                   style: const TextStyle(color: AppTheme.textWhite),
                   decoration: InputDecoration(
-                    hintText: '비밀번호',
+                    hintText: 'Password',
                     hintStyle: const TextStyle(color: AppTheme.textGray),
                     filled: true,
                     fillColor: AppTheme.deepNavy,
@@ -494,12 +521,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('취소',
+                child: const Text('Cancel',
                     style: TextStyle(color: AppTheme.textGray)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('확인',
+                child: const Text('Confirm',
                     style: TextStyle(
                         color: Colors.redAccent, fontWeight: FontWeight.bold)),
               ),
@@ -513,7 +540,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final email = user.email!;
         await _auth.reauthenticateWithPassword(email, pwdCtrl.text.trim());
       } catch (e) {
-        if (mounted) _showErrorDialog('인증 실패', '비밀번호가 올바르지 않습니다.\n다시 확인해주세요.');
+        if (mounted) _showErrorDialog(AppStrings.tr(context, '인증 실패'), AppStrings.tr(context, '비밀번호가 올바르지 않습니다. 다시 확인해주세요.'));
         return;
       }
     } else {
@@ -529,25 +556,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
-            isGoogleUser ? 'Google 계정 재인증' : 'Apple 계정 재인증',
+            isGoogleUser ? 'Re-authenticate with Google' : 'Re-authenticate with Apple',
             style: const TextStyle(color: AppTheme.textWhite),
           ),
           content: Text(
             isGoogleUser
-                ? '계정 삭제를 위해 Google 계정으로 다시 인증해야 합니다.\n계속하시겠습니까?'
-                : '계정 삭제를 위해 Apple 계정으로 다시 인증해야 합니다.\n계속하시겠습니까?',
+                ? 'You need to re-authenticate with your Google account to delete your account. Continue?'
+                : 'You need to re-authenticate with your Apple account to delete your account. Continue?',
             style: const TextStyle(
                 color: AppTheme.textGray, fontSize: 14, height: 1.6),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child:
-                  const Text('취소', style: TextStyle(color: AppTheme.textGray)),
+              child: const Text('Cancel', style: TextStyle(color: AppTheme.textGray)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('인증 진행',
+              child: const Text('Proceed',
                   style: TextStyle(
                       color: Colors.redAccent, fontWeight: FontWeight.bold)),
             ),
@@ -570,7 +596,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               msg.contains('1001')) {
             return; // 사용자가 취소한 경우
           }
-          _showErrorDialog('재인증 실패', '인증 중 오류가 발생했습니다.\n다시 시도해주세요.');
+          _showErrorDialog(AppStrings.tr(context, '재인증 실패'), AppStrings.tr(context, '인증 중 오류가 발생했습니다. 다시 시도해주세요.'));
         }
         return;
       }
@@ -587,9 +613,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         if (msg.contains('requires-recent-login')) {
           _showErrorDialog(
-              '재로그인 필요', '보안을 위해 앱을 재시작하여 다시 로그인 후 계정 삭제를 시도해주세요.');
+              AppStrings.tr(context, '재로그인 필요'), AppStrings.tr(context, '보안을 위해 앱을 재시작하여 다시 로그인 후 계정 삭제를 시도해주세요.'));
         } else {
-          _showErrorDialog('삭제 실패', '오류가 발생했습니다.\n$msg');
+          _showErrorDialog(AppStrings.tr(context, '삭제 실패'), AppStrings.tr(context, '오류가 발생했습니다.') + ' $msg');
         }
       }
     }
@@ -663,9 +689,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await File(filePath).writeAsBytes(csvBytes);
         xFile = XFile(filePath, mimeType: 'text/csv', name: fileName);
       }
-      await Share.shareXFiles([xFile], subject: '중심유지 App 활동기록');
+      await Share.shareXFiles([xFile], subject: AppStrings.tr(context, '중심유지 App 활동기록'));
     } catch (e) {
-      _showErrorDialog('내보내기 실패', '파일 생성 중 오류가 발생했습니다.\n$e');
+      _showErrorDialog(AppStrings.tr(context, '내보내기 실패'), AppStrings.tr(context, '파일 생성 중 오류가 발생했습니다.'));
     }
   }
 
@@ -705,9 +731,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await File(filePath).writeAsBytes(txtBytes);
         xFile = XFile(filePath, mimeType: 'text/plain', name: fileName);
       }
-      await Share.shareXFiles([xFile], subject: '중심유지 App 메모');
+      await Share.shareXFiles([xFile], subject: AppStrings.tr(context, '중심유지 App 메모'));
     } catch (e) {
-      _showErrorDialog('메모 내보내기 실패', '파일 생성 중 오류가 발생했습니다.\n$e');
+      _showErrorDialog(AppStrings.tr(context, '메모 내보내기 실패'), AppStrings.tr(context, '파일 생성 중 오류가 발생했습니다.'));
     }
   }
 
@@ -720,14 +746,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               return AlertDialog(
                   backgroundColor: AppTheme.bgCard,
                   title: Text(
-                    isMemo ? '메모 내보내기 범위 선택' : '기록 내보내기 범위 선택',
+                    isMemo ? AppStrings.tr(context, '메모 내보내기 범위 선택') : AppStrings.tr(context, '기록 내보내기 범위 선택'),
                     style: const TextStyle(color: AppTheme.textWhite),
                   ),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
                     Text(
                       isMemo
-                          ? '추출할 메모의 시작 날짜와 종료 날짜를 선택하세요.'
-                          : '추출할 데이터의 시작 날짜와 종료 날짜를 선택하세요.',
+                          ? AppStrings.tr(context, '추출할 메모의 시작 날짜와 종료 날짜를 선택하세요.')
+                          : AppStrings.tr(context, '추출할 데이터의 시작 날짜와 종료 날짜를 선택하세요.'),
                       style: const TextStyle(color: AppTheme.textGray),
                     ),
                     const SizedBox(height: 16),
@@ -780,8 +806,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('취소',
-                            style: TextStyle(color: AppTheme.textGray))),
+                        child: Text(AppStrings.tr(context, '취소'),
+                            style: const TextStyle(color: AppTheme.textGray))),
                     TextButton(
                         onPressed: () {
                           Navigator.pop(context);
@@ -792,7 +818,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           }
                         },
                         child: Text(
-                          isMemo ? '메모 내보내기 (TXT)' : '기록 내보내기 (CSV)',
+                          isMemo ? AppStrings.tr(context, '메모 내보내기 (TXT)') : AppStrings.tr(context, '기록 내보내기 (CSV)'),
                           style: const TextStyle(
                               color: AppTheme.mutedTeal,
                               fontWeight: FontWeight.bold),
@@ -813,10 +839,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text("기본 설정",
-                style: TextStyle(
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+                Provider.of<LanguageProvider>(context, listen: true).currentLanguage == 'en'
+                    ? 'Setting'
+                    : '설정',
+                style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textWhite)),
@@ -824,10 +853,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Expanded(
             child: ListView(
               children: [
-                _buildSectionHeader("나의 리듬 (기본값)"),
+                _buildSectionHeader("My Lifecycle (default)"),
                 _buildListTile(
                   icon: Icons.wb_sunny_outlined,
-                  title: "기본 기상 시간",
+                  title: AppStrings.tr(context, "기본 기상 시간"),
                   trailingText: "$_startHour:00",
                   onTap: () => _showHourPicker(
                       "기상 시간 (기본값)", _startHour, 0, _endHour - 1, (val) {
@@ -837,9 +866,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _buildListTile(
                   icon: Icons.nightlight_round,
-                  title: "기본 취침 시간",
+                  title: AppStrings.tr(context, "기본 취침 시간"),
                   trailingText: _endHour < _startHour
-                      ? '$_endHour:00 (다음날)'
+                      ? '$_endHour:00 (${AppStrings.tr(context, '다음날')})'
                       : '$_endHour:00',
                   onTap: () =>
                       _showHourPicker("취침 시간 (기본값)", _endHour, 0, 24, (val) {
@@ -855,10 +884,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 //   onTap: _showInputTypePicker,
                 // ),
                 const SizedBox(height: 16),
-                _buildSectionHeader("알림 시스템"),
+                _buildSectionHeader("Reminder Setting"),
                 _buildListTile(
                   icon: Icons.notifications_active_outlined,
-                  title: "알림 켜기",
+                  title: AppStrings.tr(context, "알림 켜기"),
                   isSwitch: true,
                   value: _alarmOn,
                   onSwitch: (val) async {
@@ -880,20 +909,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             backgroundColor: AppTheme.bgCard,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16)),
-                            title: const Row(
+                            title: Row(
                               children: [
-                                Icon(Icons.alarm_outlined,
+                                const Icon(Icons.alarm_outlined,
                                     color: Color(0xFFFBBF24), size: 22),
-                                SizedBox(width: 8),
-                                Text('정밀 알람 권한 필요',
-                                    style: TextStyle(
+                                const SizedBox(width: 8),
+                                Text(AppStrings.tr(context, '정밀 알람 권한 필요'),
+                                    style: const TextStyle(
                                         color: AppTheme.textWhite,
                                         fontSize: 16)),
                               ],
                             ),
-                            content: const Text(
-                              '30분/60분 간격으로 정확히 알림을 받으려면\n"알람 및 리마인더" 권한이 필요합니다.\n\n설정 > 앱 > 중심유지 >\n알람 및 리마인더 → 허용',
-                              style: TextStyle(
+                            content: Text(
+                              AppStrings.tr(context, '30분/60분 간격으로 정확히 알림을 받으려면 알람 및 리마인더 권한이 필요합니다.'),
+                              style: const TextStyle(
                                   color: AppTheme.textGray,
                                   fontSize: 14,
                                   height: 1.6),
@@ -901,13 +930,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
-                                child: const Text('나중에',
-                                    style: TextStyle(color: AppTheme.textGray)),
+                                child: Text(AppStrings.tr(context, '나중에'),
+                                    style: const TextStyle(color: AppTheme.textGray)),
                               ),
                               TextButton(
                                 onPressed: () => Navigator.pop(context, true),
-                                child: const Text('설정으로 이동',
-                                    style: TextStyle(
+                                child: Text(AppStrings.tr(context, '설정으로 이동'),
+                                    style: const TextStyle(
                                         color: AppTheme.mutedTeal,
                                         fontWeight: FontWeight.bold)),
                               ),
@@ -927,30 +956,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (_alarmOn)
                   _buildListTile(
                     icon: Icons.timer_outlined,
-                    title: "알람 간격",
-                    trailingText: "$_alarmInterval분",
+                    title: AppStrings.tr(context, "알람 간격"),
+                    trailingText: "$_alarmInterval${AppStrings.tr(context, '분')}",
                     onTap: _showIntervalPicker,
                   ),
                 const SizedBox(height: 16),
-                _buildSectionHeader("계정 및 데이터"),
+                _buildSectionHeader("Account & Data"),
                 _buildListTile(
                     icon: Icons.person_outline,
-                    title: "프로필",
+                    title: AppStrings.tr(context, "프로필"),
                     onTap: _showProfile),
                 _buildListTile(
+                    icon: Icons.language,
+                    title: AppStrings.tr(context, "언어 (Language)"),
+                    trailingText: Provider.of<LanguageProvider>(context).currentLanguage == 'ko' ? 'Korean' : 'English',
+                    onTap: _showLanguagePicker),
+                _buildListTile(
                     icon: Icons.text_snippet_outlined,
-                    title: "기록 내보내기 (CSV)",
+                    title: AppStrings.tr(context, "기록 내보내기 (CSV)"),
                     onTap: () => _showExportPopup(isMemo: false)),
                 _buildListTile(
                     icon: Icons.note_outlined,
-                    title: "메모 내보내기 (TXT)",
+                    title: AppStrings.tr(context, "메모 내보내기 (TXT)"),
                     onTap: () => _showExportPopup(isMemo: true)),
                 _buildListTile(
                   icon: Icons.policy_outlined,
-                  title: "개인정보처리방침",
+                  title: AppStrings.tr(context, "개인정보처리방침"),
                   onTap: () async {
                     if (kIsWeb) {
-                      // 웹에서는 새 탭으로 열기 (WebView 미지원)
                       final uri = Uri.parse(
                           'https://jh-pages.notion.site/App-328baf99869180429bedd807255a6145');
                       if (await canLaunchUrl(uri)) {
@@ -958,7 +991,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             mode: LaunchMode.externalApplication);
                       }
                     } else {
-                      // 모바일: 앱 내 WebView 화면으로 이동
                       if (mounted) {
                         Navigator.push(
                           context,
@@ -969,33 +1001,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
                   },
                 ),
-                const SizedBox(height: 16),
-                _buildSectionHeader("계정 관리"),
                 ListTile(
-                  leading: const Icon(Icons.logout, color: AppTheme.textWhite),
-                  title: const Text("로그아웃",
-                      style:
-                          TextStyle(color: AppTheme.textWhite, fontSize: 15)),
+                  leading: const Icon(Icons.logout, color: AppTheme.mutedTeal),
+                  title: Text(AppStrings.tr(context, "로그아웃"),
+                      style: const TextStyle(color: AppTheme.textWhite, fontSize: 15)),
                   onTap: () async {
                     try {
                       await _auth.signOut();
                     } catch (e) {
-                      _showErrorDialog('로그아웃 실패', '오류가 발생했습니다.\n$e');
+                      _showErrorDialog(AppStrings.tr(context, '로그아웃 실패'), AppStrings.tr(context, '오류가 발생했습니다.') + '\n$e');
                     }
                   },
                 ),
                 const SizedBox(height: 16),
-                _buildSectionHeader("앱 정보"),
                 ListTile(
-                  leading:
-                      const Icon(Icons.info_outline, color: AppTheme.mutedTeal),
-                  title: const Text("버전 정보",
-                      style:
-                          TextStyle(color: AppTheme.textWhite, fontSize: 15)),
+                  leading: const Icon(Icons.info_outline, color: AppTheme.mutedTeal),
+                  title: Text(AppStrings.tr(context, "버전 정보"),
+                      style: const TextStyle(color: AppTheme.textWhite, fontSize: 15)),
                   trailing: Text(
                     _appVersion,
-                    style:
-                        const TextStyle(color: AppTheme.textGray, fontSize: 13),
+                    style: const TextStyle(color: AppTheme.textGray, fontSize: 13),
                   ),
                 ),
                 const SizedBox(height: 24),

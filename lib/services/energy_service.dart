@@ -132,13 +132,19 @@ class EnergyService {
         .collection('settings')
         .doc('default')
         .get();
-    if (doc.exists) return doc.data() as Map<String, dynamic>;
+    if (doc.exists) {
+      var data = doc.data() as Map<String, dynamic>;
+      if (!data.containsKey('language')) data['language'] = 'ko';
+      if (!data.containsKey('alarmOn')) data['alarmOn'] = true;
+      return data;
+    }
     return {
       'startHour': 7,
       'endHour': 24,
       'alarmInterval': 60,
       'alarmOn': true,
-      'inputType': 'bar'
+      'inputType': 'bar',
+      'language': 'ko'
     };
   }
 
@@ -150,5 +156,14 @@ class EnergyService {
         .collection('settings')
         .doc('default')
         .set(data, SetOptions(merge: true));
+  }
+
+  Future<void> deleteDailyLog(String userId, String dateId) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('daily_logs')
+        .doc(dateId)
+        .delete();
   }
 }

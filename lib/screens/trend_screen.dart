@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/energy_service.dart';
 import '../services/memo_service.dart';
+import '../theme/app_strings.dart';
 
 class TrendScreen extends StatefulWidget {
   final void Function(DateTime date)? onDateSelected;
@@ -28,6 +29,9 @@ class _TrendScreenState extends State<TrendScreen> {
 
   // 메모 있는 날짜 Set (yyyy-MM-dd)
   Set<String> _memoDates = {};
+  bool _isEditMode = false;
+  Set<String> _selectedEditDates = {};
+
 
   @override
   void initState() {
@@ -94,8 +98,8 @@ class _TrendScreenState extends State<TrendScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("유지 통계",
-                    style: TextStyle(
+                Text(AppStrings.tr(context, "유지 통계"),
+                    style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textWhite)),
@@ -115,11 +119,11 @@ class _TrendScreenState extends State<TrendScreen> {
                       borderRadius: BorderRadius.circular(20),
                       constraints:
                           const BoxConstraints(minWidth: 100, minHeight: 36),
-                      children: const [
-                        Text("캘린더",
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text("그래프",
-                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      children: [
+                        Text(AppStrings.tr(context, "캘린더"),
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(AppStrings.tr(context, "그래프"),
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -149,6 +153,57 @@ class _TrendScreenState extends State<TrendScreen> {
     );
   }
 
+  Future<void> _confirmDelete(String type) async {
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Delete Warning', style: const TextStyle(color: Colors.redAccent)),
+          ],
+        ),
+        content: Text(
+          'Delete ${_selectedEditDates.length} date(s) of ${type == 'memo' ? 'Memo' : 'Record'}?\nThis cannot be undone.',
+          style: const TextStyle(color: AppTheme.textWhite, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textGray)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm & Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      String? uid = _auth.currentUser?.uid;
+      if (uid != null) {
+        for (String dateKey in _selectedEditDates) {
+          if (type == 'memo') {
+            await _memoService.deleteMemo(uid, dateKey);
+          } else {
+            await _energy.deleteDailyLog(uid, dateKey);
+          }
+        }
+        if (mounted) {
+          setState(() {
+            _isEditMode = false;
+            _selectedEditDates.clear();
+          });
+          _loadMemoDates();
+        }
+      }
+    }
+  }
+
   Widget _buildCalendarView(Map<String, int> EFF_MAP) {
     int daysInMonth =
         DateTime(_currentMonth.year, _currentMonth.month + 1, 0).day;
@@ -163,24 +218,22 @@ class _TrendScreenState extends State<TrendScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                  icon:
-                      const Icon(Icons.chevron_left, color: AppTheme.textWhite),
-                  onPressed: () => _changeMonth(-1)),
-              Text(DateFormat('yyyy년 MM월').format(_currentMonth),
+                  icon: const Icon(Icons.chevron_left, color: AppTheme.textWhite),
+                  onPressed: _isEditMode ? null : () => _changeMonth(-1)),
+              Text(DateFormat('yyyy.M').format(_currentMonth),
                   style: const TextStyle(
                       fontSize: 18,
                       color: AppTheme.textWhite,
                       fontWeight: FontWeight.bold)),
               IconButton(
-                  icon: const Icon(Icons.chevron_right,
-                      color: AppTheme.textWhite),
-                  onPressed: () => _changeMonth(1)),
+                  icon: const Icon(Icons.chevron_right, color: AppTheme.textWhite),
+                  onPressed: _isEditMode ? null : () => _changeMonth(1)),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: ['일', '월', '화', '수', '목', '금', '토']
+            children: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
                 .map((d) => Text(d,
                     style: const TextStyle(
                         color: AppTheme.textGray, fontSize: 12)))
@@ -211,38 +264,59 @@ class _TrendScreenState extends State<TrendScreen> {
 
                 return GestureDetector(
                   onTap: () {
-                    // 수정 5-2: 캘린더 날짜 클릭 → 홈 탭으로 이동
-                    widget.onDateSelected?.call(d);
+                    if (_isEditMode) {
+                      setState(() {
+                        if (_selectedEditDates.contains(dateKey)) {
+                          _selectedEditDates.remove(dateKey);
+                        } else {
+                          _selectedEditDates.add(dateKey);
+                        }
+                      });
+                    } else {
+                      widget.onDateSelected?.call(d);
+                    }
                   },
                   child: Container(
                   decoration: BoxDecoration(
-                    // teal 틴트 = 메모 있는 날짜, 기본 = bgCard
                     color: hasMemo
                         ? AppTheme.mutedTeal.withOpacity(0.22)
                         : AppTheme.bgCard,
                     borderRadius: BorderRadius.circular(8),
-                    border: isToday
-                        ? Border.all(color: AppTheme.yellowAccent, width: 1.5)
-                        : null,
+                    border: _isEditMode && _selectedEditDates.contains(dateKey)
+                        ? Border.all(color: AppTheme.mutedTeal, width: 2.0)
+                        : (isToday
+                            ? Border.all(color: AppTheme.yellowAccent, width: 1.5)
+                            : null),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Stack(
+                    alignment: Alignment.center,
                     children: [
-                      Text('$day',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: isToday
-                                  ? AppTheme.yellowAccent
-                                  : AppTheme.textWhite)),
-                      // 기록 있는 날: % 숫자 표시
-                      if (efficiency != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: Text('$efficiency%',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.activeGreen)),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('$day',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: isToday
+                                      ? AppTheme.yellowAccent
+                                      : AppTheme.textWhite)),
+                          if (efficiency != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Text('$efficiency%',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.activeGreen)),
+                            ),
+                        ],
+                      ),
+                      if (_isEditMode && _selectedEditDates.contains(dateKey))
+                        const Positioned(
+                          top: 2,
+                          right: 2,
+                          child: Icon(Icons.check_circle,
+                              color: AppTheme.mutedTeal, size: 14),
                         ),
                     ],
                   ),
@@ -250,17 +324,83 @@ class _TrendScreenState extends State<TrendScreen> {
                 );
               },
             ),
-          )
-          // 하단 범례 설명
-          ,
-          const Padding(
-            padding: EdgeInsets.only(top: 8.0, bottom: 4.0),
-            child: Text(
-              '메모가 있는 날은 배경색이 다릅니다.\n날짜를 클릭하면 기록을 볼 수 있습니다.',
-              style: TextStyle(
-                fontSize: 11,
-                color: AppTheme.textGray,
-              ),
+          ),
+           Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // 편집 모드: 날짜 선택 안내 + 삭제 버튼 2개 위
+                if (_isEditMode && _selectedEditDates.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => _confirmDelete('record'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                          ),
+                          child: Text(
+                            AppStrings.tr(context, '기록 삭제'),
+                            style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _confirmDelete('memo'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                          ),
+                          child: Text(
+                            AppStrings.tr(context, '메모 삭제'),
+                            style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                // 하단 로우: 삭제/취소 버튼 + 안내 문구
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isEditMode = !_isEditMode;
+                          _selectedEditDates.clear();
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                      ),
+                      child: Text(
+                        _isEditMode ? AppStrings.tr(context, '취소') : AppStrings.tr(context, '삭제'),
+                        style: TextStyle(
+                          color: _isEditMode ? AppTheme.textGray : Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _isEditMode
+                            ? AppStrings.tr(context, '기록 또는 메모를 삭제할 날짜를 선택하세요')
+                            : AppStrings.tr(context, '메모가 있는 날은 배경색이 다릅니다.\n날짜를 클릭하면 기록을 볼 수 있습니다.'),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _isEditMode ? AppTheme.mutedTeal : AppTheme.textGray,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -292,7 +432,7 @@ class _TrendScreenState extends State<TrendScreen> {
                   onPressed: () => _changeWeek(-1)),
               Column(
                 children: [
-                  const Text("주간 동향",
+                  const Text("Weekly Trend",
                       style: TextStyle(
                           fontSize: 16,
                           color: AppTheme.textWhite,

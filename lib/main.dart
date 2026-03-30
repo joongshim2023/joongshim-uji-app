@@ -16,6 +16,11 @@ import 'firebase_options.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import 'services/language_provider.dart';
+import 'theme/app_strings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,7 +53,19 @@ void main() async {
           '880648187658-bfejjnap1bn8rq8usu7e5l2td7g1g9mc.apps.googleusercontent.com',
     );
   }
-  runApp(const JoongshimUjiApp());
+  // 앱 실행 전에 SharedPreferences에서 언어 설정을 미리 읽어 초기값으로 전달
+  // → 로그인 화면부터 올바른 언어로 표시
+  final prefs = await SharedPreferences.getInstance();
+  final savedLanguage = prefs.getString('language_code') ?? 'ko';
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LanguageProvider(initialLanguage: savedLanguage)),
+      ],
+      child: const JoongshimUjiApp(),
+    ),
+  );
 }
 
 class JoongshimUjiApp extends StatelessWidget {
@@ -56,9 +73,20 @@ class JoongshimUjiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lang = Provider.of<LanguageProvider>(context).currentLanguage;
     return MaterialApp(
-      title: '중심 유지 App',
+      title: 'Feeling Joongshim',
       theme: AppTheme.themeData,
+      locale: Locale(lang),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', 'US'),
+        Locale('ko', 'KR'),
+      ],
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
@@ -244,22 +272,22 @@ class MainNavigatorState extends State<MainNavigator> {
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: [
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: '유지'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.edit_note_outlined),
-              activeIcon: Icon(Icons.edit_note_rounded),
-              label: '메모'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.insights_outlined),
-              activeIcon: Icon(Icons.insights),
-              label: '통계'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              activeIcon: Icon(Icons.settings),
-              label: '설정'),
+          BottomNavigationBarItem(
+              icon: const Icon(Icons.home_outlined),
+              activeIcon: const Icon(Icons.home),
+              label: AppStrings.tr(context, '홈')),
+          BottomNavigationBarItem(
+              icon: const Icon(Icons.edit_note_outlined),
+              activeIcon: const Icon(Icons.edit_note_rounded),
+              label: AppStrings.tr(context, '메모')),
+          BottomNavigationBarItem(
+              icon: const Icon(Icons.insights_outlined),
+              activeIcon: const Icon(Icons.insights),
+              label: AppStrings.tr(context, '통계')),
+          BottomNavigationBarItem(
+              icon: const Icon(Icons.settings_outlined),
+              activeIcon: const Icon(Icons.settings),
+              label: AppStrings.tr(context, '설정')),
         ],
       ),
     );

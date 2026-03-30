@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "joongshim_uji_app",
-      "version": "1.4.1+23",
+      "version": "1.4.2+24",
       "dependencies": [
         "cloud_firestore",
         "cupertino_icons",
@@ -16,6 +16,7 @@
         "fl_chart",
         "flutter",
         "flutter_local_notifications",
+        "flutter_localizations",
         "google_sign_in",
         "in_app_update",
         "intl",
@@ -71,6 +72,15 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "flutter_localizations",
+      "version": "0.0.0",
+      "dependencies": [
+        "flutter",
+        "intl",
+        "path"
       ]
     },
     {

@@ -12,6 +12,9 @@ import '../services/memo_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/marquee_text.dart';
 import 'memo_screen.dart';
+import '../theme/app_strings.dart';
+import 'package:provider/provider.dart';
+import '../services/language_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   final DateTime? initialDate;
@@ -387,20 +390,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
             // 취침시간 레이블 헬퍼
             String endLabel(int h) {
-              if (h == 24) return '24시(자정)';
-              if (h > 24) return '${h - 24}시(다음날)';
-              return '$h시';
+              final lang = Provider.of<LanguageProvider>(context, listen: false).currentLanguage;
+              if (h == 24) return lang == 'en' ? '12 am (midnight)' : '24시(자정)';
+              if (h > 24) return lang == 'en' ? '${h - 24} am (next)' : '${h - 24}시(다음날)';
+              return lang == 'en' ? '$h:00' : '$h시';
             }
 
             return AlertDialog(
               backgroundColor: AppTheme.bgCard,
-              title: const Text('활동 시간 설정',
+              title: const Text('Active Hours Setting',
                   style: TextStyle(color: AppTheme.textWhite)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                      '${DateFormat('yyyy년 MM월 dd일').format(_selectedDate)}의 활동 시간',
+                      DateFormat('yyyy.MM.dd').format(_selectedDate),
                       style: const TextStyle(
                           color: AppTheme.textGray, fontSize: 12)),
                   const SizedBox(height: 20),
@@ -408,7 +412,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('기상 시간',
+                      const Text('Wake Time',
                           style: TextStyle(color: AppTheme.textWhite)),
                       DropdownButton<int>(
                         value: tempStart,
@@ -418,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             .where((h) => h >= minStartHour)
                             .map((h) => DropdownMenuItem(
                                   value: h,
-                                  child: Text('$h시'),
+                                  child: Text('$h:00'),
                                 ))
                             .toList(),
                         onChanged: (val) {
@@ -437,7 +441,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('취침 시간',
+                      const Text('Sleep Time',
                           style: TextStyle(color: AppTheme.textWhite)),
                       DropdownButton<int>(
                         value: tempEnd,
@@ -465,8 +469,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   // 안내 메시지
                   if (minStartHour > 0)
-                    _constraintHint('전날 취침시간($minStartHour시) 이후부터 기상 가능합니다.'),
-                  _constraintHint('다음날 기상시간(${maxEndHour}시)까지 자정 초과 취침 가능합니다.'),
+                    _constraintHint('Wake time must be after previous sleep time ($minStartHour:00).'),
+                  _constraintHint('Sleep time is available up to ${maxEndHour}am next day'),
                   if (isOvernight)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
@@ -484,7 +488,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                '다음날 새벽 $displayEnd시까지로 설정됩니다.',
+                                'Set to ${displayEnd} am next day',
                                 style: const TextStyle(
                                     color: AppTheme.softIndigo, fontSize: 11),
                               ),
@@ -498,14 +502,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('취소',
+                    child: const Text('Cancel',
                         style: TextStyle(color: AppTheme.textGray))),
                 TextButton(
                   onPressed: () {
                     _updateSettings(tempStart, tempEnd);
                     Navigator.pop(context);
                   },
-                  child: const Text('저장',
+                  child: const Text('Save',
                       style: TextStyle(color: AppTheme.mutedTeal)),
                 ),
               ],
@@ -697,8 +701,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.all(16.0),
       child: Row(
         children: [
-          const Text('중심 유지',
-              style: TextStyle(
+          Text(
+              Provider.of<LanguageProvider>(context, listen: true).currentLanguage == 'en'
+                  ? 'Feel Joongshim Energy'
+                  : '중심 유지',
+              style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textWhite)),
@@ -772,13 +779,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textWhite)),
                 if (isToday)
-                  const Text('오늘',
-                      style: TextStyle(
-                          fontSize: 12, color: AppTheme.activeGreen)),
-                if (!isToday)
-                  const Text('과거 기록',
-                      style: TextStyle(
-                          fontSize: 12, color: AppTheme.softIndigo)),
+                  Text(
+                    Provider.of<LanguageProvider>(context, listen: true).currentLanguage == 'en' ? 'Today' : '오늘',
+                    style: const TextStyle(fontSize: 12, color: AppTheme.activeGreen)),
               ],
             ),
           ),
@@ -822,12 +825,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.keyboard_double_arrow_right,
+                  children: [
+                    const Icon(Icons.keyboard_double_arrow_right,
                         color: AppTheme.mutedTeal, size: 16),
-                    SizedBox(width: 2),
-                    Text('오늘',
-                        style: TextStyle(
+                    const SizedBox(width: 2),
+                    Text('Today',
+                        style: const TextStyle(
                             color: AppTheme.mutedTeal,
                             fontSize: 12,
                             fontWeight: FontWeight.w600)),
@@ -844,13 +847,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildSummaryBadge(int totalMins, int pct) {
     int h = totalMins ~/ 60;
     int m = totalMins % 60;
+    final lang = Provider.of<LanguageProvider>(context, listen: false).currentLanguage;
     String timeRangeLabel;
     if (_localEndHour == 24) {
-      timeRangeLabel = '$_localStartHour시 ~ 24시(자정)';
+      timeRangeLabel = lang == 'en'
+          ? '$_localStartHour am ~ 12 am (midnight)'
+          : '$_localStartHour시 ~ 24시(자정)';
     } else if (_isOvernightMode) {
-      timeRangeLabel = '$_localStartHour시 ~ $_normalizedEndHour시(다음날)';
+      timeRangeLabel = lang == 'en'
+          ? '$_localStartHour am ~ ${_normalizedEndHour} am (next)'
+          : '$_localStartHour시 ~ $_normalizedEndHour시(다음날)';
     } else {
-      timeRangeLabel = '$_localStartHour시 ~ $_localEndHour시';
+      timeRangeLabel = lang == 'en'
+          ? '$_localStartHour am ~ $_localEndHour am'
+          : '$_localStartHour시 ~ $_localEndHour시';
     }
 
     return GestureDetector(
@@ -873,7 +883,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             fontWeight: FontWeight.bold,
                             color: AppTheme.textWhite)),
                     const SizedBox(height: 4),
-                    const Text('총 유지시간',
+                    const Text('Active Time',
                         style:
                             TextStyle(color: AppTheme.textGray, fontSize: 12)),
                   ],
@@ -887,7 +897,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             fontWeight: FontWeight.bold,
                             color: AppTheme.activeGreen)),
                     const SizedBox(height: 4),
-                    const Text('유지 비중',
+                    const Text('Ratio',
                         style: TextStyle(
                             color: AppTheme.activeGreen,
                             fontSize: 12,
@@ -913,7 +923,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         const Icon(Icons.schedule,
                             size: 14, color: AppTheme.softIndigo),
                         const SizedBox(width: 4),
-                        Text('활동시간 설정: $timeRangeLabel',
+                        Text('Active Hours Setting: $timeRangeLabel',
                             style: const TextStyle(
                                 fontSize: 12, color: AppTheme.textWhite)),
                         const SizedBox(width: 4),
@@ -962,7 +972,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Icon(Icons.touch_app_outlined, color: AppTheme.textGray, size: 32),
               SizedBox(height: 12),
               Text(
-                '시간을\n선택하세요',
+                'Tap to\nselect time',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppTheme.textGray, fontSize: 13, height: 1.6),
               ),
@@ -1005,7 +1015,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           fontWeight: FontWeight.bold,
                           color: AppTheme.textWhite,
                           fontFamily: 'monospace')),
-                  const Text('선택됨',
+                  const Text('selected',
                       style: TextStyle(fontSize: 9, color: AppTheme.textGray)),
                 ],
               ),
@@ -1200,7 +1210,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           fontWeight: FontWeight.bold,
                           color: AppTheme.textWhite,
                           fontFamily: 'monospace')),
-                  const Text('선택됨',
+                  const Text('selected',
                       style: TextStyle(fontSize: 10, color: AppTheme.textGray)),
                 ],
               ),

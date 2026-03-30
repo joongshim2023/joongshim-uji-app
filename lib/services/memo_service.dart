@@ -99,4 +99,8 @@ class MemoService {
     }).toList()
       ..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
   }
+
+  Future<void> deleteMemo(String userId, String dateId) async {
+    await _memoRef(userId, dateId).delete();
+  }
 }

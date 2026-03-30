@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import '../services/language_provider.dart';
+import '../theme/app_strings.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -255,11 +258,15 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Image.asset('assets/images/logo.png', width: 120, height: 120),
               const SizedBox(height: 16),
-              const Text("중심 유지 App",
-                  style: TextStyle(
-                      color: AppTheme.mutedTeal,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold)),
+              Text(
+                Provider.of<LanguageProvider>(context, listen: true).currentLanguage == 'en'
+                    ? "Feel Joongshim"
+                    : "중심 유지",
+                style: const TextStyle(
+                    color: AppTheme.mutedTeal,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 48),
 
               TextField(
@@ -270,7 +277,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onSubmitted: (_) =>
                     FocusScope.of(context).requestFocus(_pwdFocusNode),
                 decoration: InputDecoration(
-                  hintText: '이메일',
+                  hintText: AppStrings.tr(context, '이메일'),
                   hintStyle: const TextStyle(color: AppTheme.textGray),
                   filled: true,
                   fillColor: AppTheme.bgCard,
@@ -290,7 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   if (!_isLoading) _submit();
                 },
                 decoration: InputDecoration(
-                  hintText: '비밀번호 (알파벳+숫자 6자 이상)',
+                  hintText: AppStrings.tr(context, '비밀번호 (알파벳+숫자 6자 이상)'),
                   hintStyle: const TextStyle(color: AppTheme.textGray),
                   filled: true,
                   fillColor: AppTheme.bgCard,
@@ -325,8 +332,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
                   ),
-                  const Text('이메일 저장',
-                      style: TextStyle(color: AppTheme.textGray)),
+                  Text(AppStrings.tr(context, '이메일 저장'),
+                      style: const TextStyle(color: AppTheme.textGray)),
                 ],
               ),
               const SizedBox(height: 16),
@@ -347,7 +354,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.black))
-                      : Text(_isLogin ? '로그인' : '회원가입',
+                      : Text(
+                          _isLogin
+                              ? AppStrings.tr(context, '로그인')
+                              : AppStrings.tr(context, '회원가입'),
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
@@ -358,12 +368,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   TextButton(
                     onPressed: _forgotPassword,
-                    child: const Text('비밀번호 찾기',
-                        style: TextStyle(color: AppTheme.textGray)),
+                    child: Text(AppStrings.tr(context, '비밀번호 찾기'),
+                        style: const TextStyle(color: AppTheme.textGray)),
                   ),
                   TextButton(
                     onPressed: () => setState(() => _isLogin = !_isLogin),
-                    child: Text(_isLogin ? '처음이신가요? 회원가입' : '이미 계정이 있나요? 로그인',
+                    child: Text(_isLogin ? AppStrings.tr(context, '회원가입') : '이미 계정이 있나요? 로그인',
                         style: const TextStyle(color: AppTheme.softIndigo)),
                   ),
                 ],
@@ -375,8 +385,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _isLoading ? null : _googleLogin,
                   icon: const Icon(Icons.g_mobiledata,
                       color: AppTheme.textWhite, size: 24),
-                  label: const Text('Google 계정으로 로그인',
-                      style: TextStyle(color: AppTheme.textWhite)),
+                  label: Text(AppStrings.tr(context, 'Google 계정으로 로그인'),
+                      style: const TextStyle(color: AppTheme.textWhite)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppTheme.textGray),
                     padding: const EdgeInsets.symmetric(
@@ -395,8 +405,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: _isLoading ? null : _appleLogin,
                     icon: const Icon(Icons.apple,
                         color: AppTheme.textWhite, size: 22),
-                    label: const Text('Apple 계정으로 로그인',
-                        style: TextStyle(color: AppTheme.textWhite)),
+                    label: Text(AppStrings.tr(context, 'Apple 계정으로 로그인'),
+                        style: const TextStyle(color: AppTheme.textWhite)),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppTheme.textGray),
                       padding: const EdgeInsets.symmetric(
@@ -407,6 +417,45 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ],
+              const SizedBox(height: 32),
+              Consumer<LanguageProvider>(
+                builder: (context, langProvider, child) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: () => langProvider.changeLanguage('ko'),
+                        child: Text(
+                          'Korean',
+                          style: TextStyle(
+                            color: langProvider.currentLanguage == 'ko'
+                                ? AppTheme.mutedTeal
+                                : AppTheme.textGray,
+                            fontWeight: langProvider.currentLanguage == 'ko'
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      const Text('|', style: TextStyle(color: AppTheme.textGray)),
+                      TextButton(
+                        onPressed: () => langProvider.changeLanguage('en'),
+                        child: Text(
+                          'English',
+                          style: TextStyle(
+                            color: langProvider.currentLanguage == 'en'
+                                ? AppTheme.mutedTeal
+                                : AppTheme.textGray,
+                            fontWeight: langProvider.currentLanguage == 'en'
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ],
           ),
         ),
