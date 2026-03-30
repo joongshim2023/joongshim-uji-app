@@ -391,29 +391,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             // 취침시간 레이블 헬퍼
             String endLabel(int h) {
               final lang = Provider.of<LanguageProvider>(context, listen: false).currentLanguage;
-              if (h == 24) return lang == 'en' ? '12 am (midnight)' : '24시(자정)';
-              if (h > 24) return lang == 'en' ? '${h - 24} am (next)' : '${h - 24}시(다음날)';
-              return lang == 'en' ? '$h:00' : '$h시';
+              if (h == 24) return lang == 'en' ? '24:00 (midnight)' : '24:00(자정)';
+              if (h > 24) return lang == 'en' ? '${h - 24}:00 (next)' : '${h - 24}:00(다음날)';
+              return lang == 'en' ? '$h:00' : '$h:00';
             }
 
             return AlertDialog(
               backgroundColor: AppTheme.bgCard,
-              title: const Text('Active Hours Setting',
-                  style: TextStyle(color: AppTheme.textWhite)),
+              title: Text(AppStrings.tr(context, '활동 시간 설정'),
+                  style: const TextStyle(color: AppTheme.textWhite)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                       DateFormat('yyyy.MM.dd').format(_selectedDate),
                       style: const TextStyle(
-                          color: AppTheme.textGray, fontSize: 12)),
+                          color: AppTheme.textGray, fontSize: 16)),
                   const SizedBox(height: 20),
                   // 기상 시간: minStartHour ~ tempEnd(실제값) 직전까지
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Wake Time',
-                          style: TextStyle(color: AppTheme.textWhite)),
+                      Text(AppStrings.tr(context, '기상 시간'),
+                          style: const TextStyle(color: AppTheme.textWhite)),
                       DropdownButton<int>(
                         value: tempStart,
                         dropdownColor: AppTheme.timelineBg,
@@ -441,8 +441,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Sleep Time',
-                          style: TextStyle(color: AppTheme.textWhite)),
+                      Text(AppStrings.tr(context, '취침 시간'),
+                          style: const TextStyle(color: AppTheme.textWhite)),
                       DropdownButton<int>(
                         value: tempEnd,
                         dropdownColor: AppTheme.timelineBg,
@@ -469,8 +469,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   // 안내 메시지
                   if (minStartHour > 0)
-                    _constraintHint('Wake time must be after previous sleep time ($minStartHour:00).'),
-                  _constraintHint('Sleep time is available up to ${maxEndHour}am next day'),
+                    _constraintHint('${AppStrings.tr(context, '기상 시간은 이전 취침 시간 이후여야 합니다.')} ($minStartHour:00).'),
+                  _constraintHint('${AppStrings.tr(context, '취침 시간은 다음날 오전')} ${maxEndHour}${AppStrings.tr(context, '시까지 설정 가능합니다.')}'),
                   if (isOvernight)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
@@ -488,7 +488,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Set to ${displayEnd} am next day',
+                                '${AppStrings.tr(context, '다음날 오전')} ${displayEnd}${AppStrings.tr(context, '시로 설정')}',
                                 style: const TextStyle(
                                     color: AppTheme.softIndigo, fontSize: 11),
                               ),
@@ -502,15 +502,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel',
-                        style: TextStyle(color: AppTheme.textGray))),
+                    child: Text(AppStrings.tr(context, '취소'),
+                        style: const TextStyle(color: AppTheme.textGray))),
                 TextButton(
                   onPressed: () {
                     _updateSettings(tempStart, tempEnd);
                     Navigator.pop(context);
                   },
-                  child: const Text('Save',
-                      style: TextStyle(color: AppTheme.mutedTeal)),
+                  child: Text(AppStrings.tr(context, '저장'),
+                      style: const TextStyle(color: AppTheme.mutedTeal)),
                 ),
               ],
             );
@@ -647,7 +647,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     children: [
                       Expanded(
                         flex: 4,
-                        child: _buildClockPanel(recordsMap),
+                        child: _buildClockPanel(context, recordsMap),
                       ),
                       Expanded(
                           flex: 8,
@@ -829,7 +829,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     const Icon(Icons.keyboard_double_arrow_right,
                         color: AppTheme.mutedTeal, size: 16),
                     const SizedBox(width: 2),
-                    Text('Today',
+                    Text(AppStrings.tr(context, '오늘'),
                         style: const TextStyle(
                             color: AppTheme.mutedTeal,
                             fontSize: 12,
@@ -883,9 +883,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             fontWeight: FontWeight.bold,
                             color: AppTheme.textWhite)),
                     const SizedBox(height: 4),
-                    const Text('Active Time',
+                    Text(AppStrings.tr(context, '총 유지시간'),
                         style:
-                            TextStyle(color: AppTheme.textGray, fontSize: 12)),
+                            const TextStyle(color: AppTheme.textGray, fontSize: 12)),
                   ],
                 ),
                 Container(width: 1, height: 40, color: AppTheme.timelineBg),
@@ -893,12 +893,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   children: [
                     Text('$pct%',
                         style: const TextStyle(
-                            fontSize: 28,
+                            fontSize: 36,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.activeGreen)),
                     const SizedBox(height: 4),
-                    const Text('Ratio',
-                        style: TextStyle(
+                    Text(AppStrings.tr(context, '유지비중'),
+                        style: const TextStyle(
                             color: AppTheme.activeGreen,
                             fontSize: 12,
                             fontWeight: FontWeight.bold)),
@@ -923,7 +923,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         const Icon(Icons.schedule,
                             size: 14, color: AppTheme.softIndigo),
                         const SizedBox(width: 4),
-                        Text('Active Hours Setting: $timeRangeLabel',
+                        Text('${AppStrings.tr(context, '활동 시간 설정')}: $timeRangeLabel',
                             style: const TextStyle(
                                 fontSize: 12, color: AppTheme.textWhite)),
                         const SizedBox(width: 4),
@@ -952,7 +952,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildClockPanel(Map<String, dynamic> records) {
+  Widget _buildClockPanel(BuildContext context, Map<String, dynamic> records) {
     Map<String, dynamic> mergedRecords = Map.from(records);
     _optimisticRecords.forEach((key, val) => mergedRecords[key] = val);
 
@@ -965,16 +965,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
             color: AppTheme.bgCard, borderRadius: BorderRadius.circular(20)),
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.touch_app_outlined, color: AppTheme.textGray, size: 32),
               SizedBox(height: 12),
               Text(
-                'Tap to\nselect time',
+                AppStrings.tr(context, '시간을\n선택하세요'),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textGray, fontSize: 13, height: 1.6),
+                style: const TextStyle(color: AppTheme.textGray, fontSize: 13, height: 1.6),
               ),
             ],
           ),
@@ -1015,8 +1015,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           fontWeight: FontWeight.bold,
                           color: AppTheme.textWhite,
                           fontFamily: 'monospace')),
-                  const Text('selected',
-                      style: TextStyle(fontSize: 9, color: AppTheme.textGray)),
+                  Text(AppStrings.tr(context, '선택됨'),
+                      style: const TextStyle(fontSize: 10, color: AppTheme.textGray)),
                 ],
               ),
               IconButton(
@@ -1045,7 +1045,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ? AppTheme.activeGreen
                           : AppTheme.textGray.withOpacity(0.5))),
               const SizedBox(width: 4),
-              Text('${currentRecord}분',
+              Text('${currentRecord}${AppStrings.tr(context, '분')}',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -1055,10 +1055,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ],
           ),
           if (!isActiveWindow)
-            const Padding(
-              padding: EdgeInsets.only(top: 4.0, bottom: 8.0),
-              child: Text('수면 시간',
-                  style: TextStyle(color: AppTheme.textGray, fontSize: 12)),
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
+              child: Text(AppStrings.tr(context, '수면 시간'),
+                  style: const TextStyle(color: AppTheme.textGray, fontSize: 12)),
             )
           else
             const SizedBox(height: 8),
@@ -1227,10 +1227,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 12),
           if (!isActiveWindow)
-            const Padding(
-              padding: EdgeInsets.only(top: 4.0, bottom: 8.0),
-              child: Text('수면 시간',
-                  style: TextStyle(color: AppTheme.textGray, fontSize: 12)),
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
+              child: Text(AppStrings.tr(context, '수면 시간'),
+                  style: const TextStyle(color: AppTheme.textGray, fontSize: 12)),
             )
           else
             const SizedBox(height: 24),
@@ -1333,7 +1333,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
-              '자정 (다음날)',
+              AppStrings.tr(context, '자정 (다음날)'),
               style: TextStyle(
                 color: AppTheme.softIndigo.withOpacity(0.7),
                 fontSize: 10,

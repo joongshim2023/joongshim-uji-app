@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_strings.dart';
+import '../services/language_provider.dart';
 
 class TimelineRow extends StatelessWidget {
   final int hour;
@@ -180,7 +183,9 @@ class TimelineRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      hasData ? '${minutes}분' : '—',
+                      hasData
+                          ? '${minutes}${Provider.of<LanguageProvider>(context, listen: false).currentLanguage == 'en' ? 'm' : AppStrings.tr(context, '분')}'
+                          : '—',
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: hasData
@@ -200,7 +205,7 @@ class TimelineRow extends StatelessWidget {
                             ? AppTheme.activeGreen
                             : AppTheme.softIndigo,
                         fontWeight: FontWeight.bold,
-                        fontSize: 11,
+                        fontSize: 14.5,
                         letterSpacing: -0.5,
                       ),
                       textAlign: TextAlign.right,

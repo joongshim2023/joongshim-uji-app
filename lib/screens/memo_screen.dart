@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../services/memo_service.dart';
+import '../theme/app_strings.dart';
 
 class MemoScreen extends StatefulWidget {
   final DateTime initialDate;
@@ -286,8 +287,8 @@ class _MemoScreenState extends State<MemoScreen>
     final body = SafeArea(
       child: Column(
         children: [
-          _buildHeader(isToday),
-          _buildDateNav(isToday),
+          _buildHeader(context, isToday),
+          _buildDateNav(context, isToday),
           Expanded(
             child: SlideTransition(
               position: _slideAnimation,
@@ -295,10 +296,10 @@ class _MemoScreenState extends State<MemoScreen>
                   ? const Center(
                       child: CircularProgressIndicator(
                           color: AppTheme.mutedTeal))
-                  : _buildMemoArea(),
+                  : _buildMemoArea(context),
             ),
           ),
-          _buildBottomBar(),
+          _buildBottomBar(context),
         ],
       ),
     );
@@ -361,7 +362,7 @@ class _MemoScreenState extends State<MemoScreen>
     );
   }
 
-  Widget _buildHeader(bool isToday) {
+  Widget _buildHeader(BuildContext context, bool isToday) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
@@ -389,7 +390,7 @@ class _MemoScreenState extends State<MemoScreen>
           ],
           // 아이콘 제거, 설정/통계 화면과 동일한 평체 헤더
           Text(
-            'Memo',
+            AppStrings.tr(context, '메모'),
             style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -415,7 +416,7 @@ class _MemoScreenState extends State<MemoScreen>
     );
   }
 
-  Widget _buildDateNav(bool isToday) {
+  Widget _buildDateNav(BuildContext context, bool isToday) {
     return AnimatedBuilder(
       animation: _flashAnimation,
       builder: (context, child) {
@@ -490,14 +491,14 @@ class _MemoScreenState extends State<MemoScreen>
               child: Column(
                 children: [
                   Text(
-                    DateFormat('yyyy. MM. dd').format(_selectedDate),
+                    '${DateFormat('yyyy. MM. dd').format(_selectedDate)} (${AppStrings.tr(context, ["월", "화", "수", "목", "금", "토", "일"][_selectedDate.weekday - 1])})',
                     style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textWhite),
                   ),
                   Text(
-                    isToday ? 'Today' : '',
+                    isToday ? AppStrings.tr(context, '오늘') : '',
                     style: TextStyle(
                         fontSize: 12,
                         color: isToday
@@ -553,12 +554,12 @@ class _MemoScreenState extends State<MemoScreen>
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.keyboard_double_arrow_right,
+                  children: [
+                    const Icon(Icons.keyboard_double_arrow_right,
                         color: AppTheme.mutedTeal, size: 16),
-                    SizedBox(width: 2),
-                    Text('Today',
-                        style: TextStyle(
+                    const SizedBox(width: 2),
+                    Text(AppStrings.tr(context, '오늘'),
+                        style: const TextStyle(
                             color: AppTheme.mutedTeal,
                             fontSize: 12,
                             fontWeight: FontWeight.w600)),
@@ -572,7 +573,7 @@ class _MemoScreenState extends State<MemoScreen>
     );
   }
 
-  Widget _buildMemoArea() {
+  Widget _buildMemoArea(BuildContext context) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       decoration: BoxDecoration(
@@ -593,7 +594,7 @@ class _MemoScreenState extends State<MemoScreen>
                 height: 1.7,
               ),
               decoration: InputDecoration(
-                hintText: 'Leave a note for this day.',
+                hintText: AppStrings.tr(context, '이 날의 메모를 남겨보세요'),
                 hintStyle: TextStyle(
                     color: AppTheme.textGray.withOpacity(0.5),
                     fontSize: 15),
@@ -626,7 +627,7 @@ class _MemoScreenState extends State<MemoScreen>
     );
   }
 
-  Widget _buildBottomBar() {
+  Widget _buildBottomBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: SizedBox(
@@ -647,9 +648,9 @@ class _MemoScreenState extends State<MemoScreen>
                   height: 20,
                   child: CircularProgressIndicator(
                       color: Colors.white, strokeWidth: 2))
-              : const Text(
-                  'Save',
-                  style: TextStyle(
+              : Text(
+                  AppStrings.tr(context, '저장'),
+                  style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.deepNavy),

@@ -159,25 +159,29 @@ class _TrendScreenState extends State<TrendScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.bgCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-            SizedBox(width: 8),
-            Text('Delete Warning', style: const TextStyle(color: Colors.redAccent)),
+            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            const SizedBox(width: 8),
+            Text(AppStrings.tr(context, '삭제 경고'),
+                style: const TextStyle(color: Colors.redAccent)),
           ],
         ),
         content: Text(
-          'Delete ${_selectedEditDates.length} date(s) of ${type == 'memo' ? 'Memo' : 'Record'}?\nThis cannot be undone.',
+          '${AppStrings.tr(context, '선택한 ')}${_selectedEditDates.length}${AppStrings.tr(context, '개의 날짜에 대한')} ${type == 'memo' ? AppStrings.tr(context, '메모') : AppStrings.tr(context, '기록')}${AppStrings.tr(context, '를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')}',
           style: const TextStyle(color: AppTheme.textWhite, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textGray)),
+            child: Text(AppStrings.tr(context, '취소'),
+                style: const TextStyle(color: AppTheme.textGray)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm & Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(AppStrings.tr(context, '확인 후 삭제'),
+                style: const TextStyle(
+                    color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -220,7 +224,7 @@ class _TrendScreenState extends State<TrendScreen> {
               IconButton(
                   icon: const Icon(Icons.chevron_left, color: AppTheme.textWhite),
                   onPressed: _isEditMode ? null : () => _changeMonth(-1)),
-              Text(DateFormat('yyyy.M').format(_currentMonth),
+              Text('${DateFormat('yyyy.').format(_currentMonth)}${AppStrings.tr(context, DateFormat('M').format(_currentMonth))}',
                   style: const TextStyle(
                       fontSize: 18,
                       color: AppTheme.textWhite,
@@ -233,8 +237,8 @@ class _TrendScreenState extends State<TrendScreen> {
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-                .map((d) => Text(d,
+            children: ['일', '월', '화', '수', '목', '금', '토']
+                .map((d) => Text(AppStrings.tr(context, d),
                     style: const TextStyle(
                         color: AppTheme.textGray, fontSize: 12)))
                 .toList(),
@@ -432,8 +436,8 @@ class _TrendScreenState extends State<TrendScreen> {
                   onPressed: () => _changeWeek(-1)),
               Column(
                 children: [
-                  const Text("Weekly Trend",
-                      style: TextStyle(
+                  Text(AppStrings.tr(context, "주간 동향"),
+                      style: const TextStyle(
                           fontSize: 16,
                           color: AppTheme.textWhite,
                           fontWeight: FontWeight.bold)),

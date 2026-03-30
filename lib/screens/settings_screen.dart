@@ -204,11 +204,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           return [
                             ...sameDay.map((h) => DropdownMenuItem(
                                   value: h,
-                                  child: Text(h == 24 ? '12 am (midnight)' : '$h:00'),
+                                  child: Text(h == 24
+                                      ? (Provider.of<LanguageProvider>(context,
+                                                      listen: false)
+                                                  .currentLanguage ==
+                                              'en'
+                                          ? '24:00 (midnight)'
+                                          : '24:00(자정)')
+                                      : '$h:00'),
                                 )),
                             ...nextDay.map((h) => DropdownMenuItem(
                                   value: h,
-                                  child: Text('$h (Next)'),
+                                  child: Text('$h:00 (${AppStrings.tr(context, '다음날')})'),
                                 )),
                           ];
                         }
@@ -252,15 +259,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel',
-                          style: TextStyle(color: AppTheme.textGray))),
+                      child: Text(AppStrings.tr(context, '취소'),
+                          style: const TextStyle(color: AppTheme.textGray))),
                   TextButton(
                       onPressed: () {
                         onSelected(tempVal);
                         Navigator.pop(context);
                       },
-                      child: const Text('Save',
-                          style: TextStyle(color: AppTheme.mutedTeal))),
+                      child: Text(AppStrings.tr(context, '저장'),
+                          style: const TextStyle(color: AppTheme.mutedTeal))),
                 ]);
           });
         });
@@ -271,11 +278,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         context: context,
         builder: (_) => AlertDialog(
             backgroundColor: AppTheme.bgCard,
-            title: const Text('Select Reminder Interval',
+            title: Text(AppStrings.tr(context, '알림 주기 선택'),
                 style: TextStyle(color: AppTheme.textWhite)),
             content: Column(mainAxisSize: MainAxisSize.min, children: [
               ListTile(
-                title: const Text('Every 30 min',
+                title: Text(AppStrings.tr(context, '30분마다 알림'),
                     style: TextStyle(color: AppTheme.textWhite)),
                 onTap: () {
                   setState(() => _alarmInterval = 30);
@@ -284,7 +291,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               ListTile(
-                title: const Text('Every 60 min',
+                title: Text(AppStrings.tr(context, '60분마다 알림'),
                     style: TextStyle(color: AppTheme.textWhite)),
                 onTap: () {
                   setState(() => _alarmInterval = 60);
@@ -333,16 +340,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         context: context,
         builder: (dialogContext) => AlertDialog(
               backgroundColor: AppTheme.bgCard,
-              title: const Text('Profile',
+              title: Text(AppStrings.tr(context, '프로필'),
                   style: TextStyle(color: AppTheme.textWhite)),
               content: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Currently linked email account',
-                        style: TextStyle(color: AppTheme.textGray, fontSize: 12)),
+                    Text(AppStrings.tr(context, '현재 연동된 이메일 계정'),
+                        style: const TextStyle(color: AppTheme.textGray, fontSize: 12)),
                     const SizedBox(height: 8),
-                    Text(email ?? 'Unknown account',
+                    Text(email ?? AppStrings.tr(context, '알 수 없는 계정'),
                         style: const TextStyle(
                             color: AppTheme.textWhite,
                             fontSize: 16,
@@ -358,16 +365,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             try {
                               await _auth.sendPasswordReset(email);
                                 Navigator.pop(dialogContext);
-                              _showInfoDialog(AppStrings.tr(context, 'Email Sent'),
-                                  AppStrings.tr(context, 'A password reset link has been sent to') + ' $email.\n' + AppStrings.tr(context, 'Please check your inbox.'));
+                              _showInfoDialog(AppStrings.tr(context, '비밀번호 재설정 메일이 발송되었습니다.'),
+                                  AppStrings.tr(context, '다음 이메일 주소로 비밀번호 재설정 링크가 발송되었습니다:') + ' $email.\n' + AppStrings.tr(context, '메일함을 확인해주세요.'));
                             } catch (e) {
                               Navigator.pop(dialogContext);
                               _showErrorDialog(AppStrings.tr(context, 'Failed'), AppStrings.tr(context, 'An error occurred.') + '\n$e');
                             }
                           }
                         },
-                        child: const Text('Get password reset link via email',
-                            style: TextStyle(
+                        child: Text(AppStrings.tr(context, '이메일로 비밀번호 재설정 링크 받기'),
+                            style: const TextStyle(
                                 color: AppTheme.deepNavy,
                                 fontWeight: FontWeight.bold)),
                       ),
@@ -380,9 +387,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Navigator.pop(dialogContext);
                         _showDeleteAccountDialog();
                       },
-                      child: const Text(
-                        'Delete Account',
-                        style: TextStyle(
+                      child: Text(
+                        AppStrings.tr(context, '계정 삭제'),
+                        style: const TextStyle(
                           color: Colors.redAccent,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -442,20 +449,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: AppTheme.bgCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
-            SizedBox(width: 8),
-            Text('Delete Account',
-                style: TextStyle(
+            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+            const SizedBox(width: 8),
+            Text(AppStrings.tr(context, '계정 삭제'),
+                style: const TextStyle(
                     color: Colors.redAccent,
                     fontSize: 18,
                     fontWeight: FontWeight.bold)),
           ],
         ),
-        content: const Text(
-          'Deleting your account will permanently remove all your data (logs, settings).\n\nThis cannot be undone.',
-          style: TextStyle(color: AppTheme.textGray, fontSize: 14, height: 1.6),
+        content: Text(
+          AppStrings.tr(context, '계정을 삭제하면 모든 데이터(기록, 설정)가 영구적으로 제거됩니다.\n\n이 작업은 되돌릴 수 없습니다.'),
+          style: const TextStyle(color: AppTheme.textGray, fontSize: 14, height: 1.6),
         ),
         actions: [
           TextButton(
@@ -464,7 +471,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(AppStrings.tr(context, 'Delete'),
+            child: Text(AppStrings.tr(context, '삭제'),
                 style: const TextStyle(
                     color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
@@ -486,13 +493,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             backgroundColor: AppTheme.bgCard,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('Confirm Password',
-                style: TextStyle(color: AppTheme.textWhite)),
+            title: Text(AppStrings.tr(context, '비밀번호 확인'),
+                style: const TextStyle(color: AppTheme.textWhite)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Please enter your current password to delete your account.',
-                    style: TextStyle(color: AppTheme.textGray, fontSize: 14)),
+                Text(AppStrings.tr(context, '계정을 삭제하려면 현재 비밀번호를 입력해주세요.'),
+                    style: const TextStyle(color: AppTheme.textGray, fontSize: 14)),
                 const SizedBox(height: 16),
                 TextField(
                   controller: pwdCtrl,
@@ -500,7 +507,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   autofocus: true,
                   style: const TextStyle(color: AppTheme.textWhite),
                   decoration: InputDecoration(
-                    hintText: 'Password',
+                    hintText: AppStrings.tr(context, '비밀번호'),
                     hintStyle: const TextStyle(color: AppTheme.textGray),
                     filled: true,
                     fillColor: AppTheme.deepNavy,
@@ -521,13 +528,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel',
-                    style: TextStyle(color: AppTheme.textGray)),
+                child: Text(AppStrings.tr(context, '취소'),
+                    style: const TextStyle(color: AppTheme.textGray)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Confirm',
-                    style: TextStyle(
+                child: Text(AppStrings.tr(context, '확인'),
+                    style: const TextStyle(
                         color: Colors.redAccent, fontWeight: FontWeight.bold)),
               ),
             ],
@@ -556,25 +563,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
-            isGoogleUser ? 'Re-authenticate with Google' : 'Re-authenticate with Apple',
+            isGoogleUser ? AppStrings.tr(context, 'Google로 재인증') : AppStrings.tr(context, 'Apple로 재인증'),
             style: const TextStyle(color: AppTheme.textWhite),
           ),
           content: Text(
             isGoogleUser
-                ? 'You need to re-authenticate with your Google account to delete your account. Continue?'
-                : 'You need to re-authenticate with your Apple account to delete your account. Continue?',
+                ? AppStrings.tr(context, '계정을 삭제하려면 Google 계정으로 다시 인증해야 합니다. 계속하시겠습니까?')
+                : AppStrings.tr(context, '계정을 삭제하려면 Apple 계정으로 다시 인증해야 합니다. 계속하시겠습니까?'),
             style: const TextStyle(
                 color: AppTheme.textGray, fontSize: 14, height: 1.6),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel', style: TextStyle(color: AppTheme.textGray)),
+              child: Text(AppStrings.tr(context, '취소'), style: const TextStyle(color: AppTheme.textGray)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Proceed',
-                  style: TextStyle(
+              child: Text(AppStrings.tr(context, '진행'),
+                  style: const TextStyle(
                       color: Colors.redAccent, fontWeight: FontWeight.bold)),
             ),
           ],
@@ -853,7 +860,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Expanded(
             child: ListView(
               children: [
-                _buildSectionHeader("My Lifecycle (default)"),
+                _buildSectionHeader(AppStrings.tr(context, '나의 리듬 (기본값)')),
                 _buildListTile(
                   icon: Icons.wb_sunny_outlined,
                   title: AppStrings.tr(context, "기본 기상 시간"),
@@ -884,7 +891,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 //   onTap: _showInputTypePicker,
                 // ),
                 const SizedBox(height: 16),
-                _buildSectionHeader("Reminder Setting"),
+                _buildSectionHeader(AppStrings.tr(context, '알림 시스템')),
                 _buildListTile(
                   icon: Icons.notifications_active_outlined,
                   title: AppStrings.tr(context, "알림 켜기"),
@@ -961,7 +968,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: _showIntervalPicker,
                   ),
                 const SizedBox(height: 16),
-                _buildSectionHeader("Account & Data"),
+                _buildSectionHeader(AppStrings.tr(context, '계정 및 데이터')),
                 _buildListTile(
                     icon: Icons.person_outline,
                     title: AppStrings.tr(context, "프로필"),
